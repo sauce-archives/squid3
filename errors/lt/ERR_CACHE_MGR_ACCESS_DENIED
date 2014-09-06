@@ -1,0 +1,38 @@
+
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>KLAIDA: Kešo menedžerio priėjimas uždraustas</title>
+<style type="text/css"><!-- 
+ %l
+
+body
+:lang(fa) { direction: rtl; font-size: 100%; font-family: Tahoma, Roya, sans-serif; float: right; }
+:lang(he) { direction: rtl; }
+ --></style>
+</head><body id="%c">
+<div id="titles">
+<h1>KLAIDA</h1>
+<h2>Kešo menedžerio priėjimas uždraustas.</h2>
+</div>
+<hr>
+
+<div id="content">
+<p></p>
+
+<blockquote id="error">
+<p><b>Kešo menedžerio priėjimas uždraustas.</b></p>
+</blockquote>
+
+<p>Sorry, you are not currently allowed to request %U from this cache manager until you have authenticated yourself.</p>
+
+<p>Prašome susisiekti su <a href="mailto:%w%W">administratoriumi</a>, jei jums iškilo problemos prisistatant arba, jei jūs <em>esate</em> administratorius, perskaitykite Squid documentaciją dėl kešo menedžerio interfeiso ir patikrinkite kešo žurnalą dėl detalesnių pranešimų apie klaidas.</p>
+
+<br>
+</div>
+
+<hr>
+<div id="footer">
+<p></p>
+<!-- %c -->
+</div>
+</body></html>

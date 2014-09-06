@@ -1,0 +1,38 @@
+
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>VIRHE: Pääsy välityspalvelimeen evätty</title>
+<style type="text/css"><!-- 
+ %l
+
+body
+:lang(fa) { direction: rtl; font-size: 100%; font-family: Tahoma, Roya, sans-serif; float: right; }
+:lang(he) { direction: rtl; }
+ --></style>
+</head><body id="%c">
+<div id="titles">
+<h1>VIRHE</h1>
+<h2>Pääsy välityspalvelimeen evätty.</h2>
+</div>
+<hr>
+
+<div id="content">
+<p></p>
+
+<blockquote id="error">
+<p><b>Pääsy välityspalvelimeen evätty.</b></p>
+</blockquote>
+
+<p>Sinulla ei tällä hetkellä ole oikeutta pyytää osoitetta %U tästä välityspalvelimesta ennen kuin olet todentanut henkilöllisyytesi.</p>
+
+<p>Please contact the <a href="mailto:%w%W">cache administrator</a> if you have difficulties authenticating yourself.</p>
+
+<br>
+</div>
+
+<hr> 
+<div id="footer">
+<p></p>
+<!-- %c -->
+</div>
+</body></html>

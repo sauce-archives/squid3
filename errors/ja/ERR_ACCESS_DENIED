@@ -1,0 +1,37 @@
+
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>エラー: 要求されたURLからデータを取り出せませんでした。</title>
+<style type="text/css"><!--
+ %l
+
+body
+:lang(fa) { direction: rtl; font-size: 100%; font-family: Tahoma, Roya, sans-serif; float: right; }
+:lang(he) { direction: rtl; }
+ --></style>
+</head><body id="%c">
+<div id="titles">
+<h1>エラー</h1>
+<h2>リクエストされた URL は取得できませんでした</h2>
+</div>
+<hr>
+
+<div id="content">
+<p></p>
+
+<blockquote id="error">
+<p><b>アクセスを拒否されました。</b></p>
+</blockquote>
+
+<p>Access control configuration prevents your request from being allowed at this time. Please contact your service provider if you feel this is incorrect.</p>
+
+<p></p>
+<br>
+</div>
+
+<hr>
+<div id="footer">
+<p>%Tに%h (%s)が生成しました。</p>
+<!-- %c -->
+</div>
+</body></html>

@@ -1,0 +1,244 @@
+/*
+ *
+ * SQUID Web Proxy Cache          http://www.squid-cache.org/
+ * ----------------------------------------------------------
+ *
+ *  Squid is the result of efforts by numerous individuals from
+ *  the Internet community; see the CONTRIBUTORS file for full
+ *  details.   Many organizations have provided support for Squid's
+ *  development; see the SPONSORS file for full details.  Squid is
+ *  Copyrighted (C) 2001 by the Regents of the University of
+ *  California; see the COPYRIGHT file for full details.  Squid
+ *  incorporates software developed and/or copyrighted by other
+ *  sources; see the CREDITS file for full details.
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
+ *
+ */
+
+#ifndef SQUID_ACLCHECKLIST_H
+#define SQUID_ACLCHECKLIST_H
+
+#include "acl/InnerNode.h"
+#include <stack>
+
+/// ACL checklist callback
+typedef void ACLCB(allow_t, void *);
+
+/** \ingroup ACLAPI
+    Base class for maintaining Squid and transaction state for access checks.
+	Provides basic ACL checking methods. Its only child, ACLFilledChecklist,
+	keeps the actual state data. The split is necessary to avoid exposing
+    all ACL-related code to virtually Squid data types. */
+class ACLChecklist
+{
+
+public:
+
+    /**
+     * State class.
+     * This abstract class defines the behaviour of
+     * async lookups - which can vary for different ACL types.
+     * Today, every state object must be a singleton.
+     * See NULLState for an example.
+     *
+     \note *no* state should be stored in the state object,
+     * they are used to change the behaviour of the checklist, not
+     * to hold information. If you need to store information in the
+     * state object, consider subclassing ACLChecklist, converting it
+     * to a composite, or changing the state objects from singletons to
+     * refcounted objects.
+     */
+
+    class AsyncState
+    {
+
+    public:
+        virtual void checkForAsync(ACLChecklist *) const = 0;
+        virtual ~AsyncState() {}
+    };
+
+    class NullState : public AsyncState
+    {
+
+    public:
+        static NullState *Instance();
+        virtual void checkForAsync(ACLChecklist *) const;
+        virtual ~NullState() {}
+
+    private:
+        static NullState _instance;
+    };
+
+public:
+    ACLChecklist();
+    virtual ~ACLChecklist();
+
+    /**
+     * Start a non-blocking (async) check for a list of allow/deny rules.
+     * Each rule comes with a list of ACLs.
+     *
+     * The callback specified will be called with the result of the check.
+     *
+     * The first rule where all ACLs match wins. If there is such a rule,
+     * the result becomes that rule keyword (ACCESS_ALLOWED or ACCESS_DENIED).
+     *
+     * If there are rules but all ACL lists mismatch, an implicit rule is used.
+     * Its result is the negation of the keyword of the last seen rule.
+     *
+     * Some ACLs may stop the check prematurely by setting an exceptional
+     * check result (e.g., ACCESS_AUTH_REQUIRED) instead of declaring a
+     * match or mismatch.
+     *
+     * If there are no rules to check at all, the result becomes ACCESS_DUNNO.
+     * Calling this method with no rules to check wastes a lot of CPU cycles
+     * and will result in a DBG_CRITICAL debugging message.
+     */
+    void nonBlockingCheck(ACLCB * callback, void *callback_data);
+
+    /**
+     * Perform a blocking (immediate) check for a list of allow/deny rules.
+     * Each rule comes with a list of ACLs.
+     *
+     * The first rule where all ACLs match wins. If there is such a rule,
+     * the result becomes that rule keyword (ACCESS_ALLOWED or ACCESS_DENIED).
+     *
+     * If there are rules but all ACL lists mismatch, an implicit rule is used
+     * Its result is the negation of the keyword of the last seen rule.
+     *
+     * Some ACLs may stop the check prematurely by setting an exceptional
+     * check result (e.g., ACCESS_AUTH_REQUIRED) instead of declaring a
+     * match or mismatch.
+     *
+     * Some ACLs may require an async lookup which is prohibited by this
+     * method. In this case, the exceptional check result of ACCESS_DUNNO is
+     * immediately returned.
+     *
+     * If there are no rules to check at all, the result becomes ACCESS_DUNNO.
+     */
+    allow_t const & fastCheck();
+
+    /**
+     * Perform a blocking (immediate) check whether a list of ACLs matches.
+     * This method is meant to be used with squid.conf ACL-driven options that
+     * lack allow/deny keywords and are tested one ACL list at a time. Whether
+     * the checks for other occurrences of the same option continue after this
+     * call is up to the caller and option semantics.
+     *
+     * If all ACLs match, the result becomes ACCESS_ALLOWED.
+     *
+     * If all ACLs mismatch, the result becomes ACCESS_DENIED.
+     *
+     * Some ACLs may stop the check prematurely by setting an exceptional
+     * check result (e.g., ACCESS_AUTH_REQUIRED) instead of declaring a
+     * match or mismatch.
+     *
+     * Some ACLs may require an async lookup which is prohibited by this
+     * method. In this case, the exceptional check result of ACCESS_DUNNO is
+     * immediately returned.
+     *
+     * If there are no ACLs to check at all, the result becomes ACCESS_ALLOWED.
+     */
+    allow_t const & fastCheck(const Acl::Tree *list);
+
+    /// If slow lookups are allowed, switches into "async in progress" state.
+    /// Otherwise, returns false; the caller is expected to handle the failure.
+    bool goAsync(AsyncState *);
+
+    /// Matches (or resumes matching of) a child node while maintaning
+    /// resumption breadcrumbs if a [grand]child node goes async.
+    bool matchChild(const Acl::InnerNode *parent, Acl::Nodes::const_iterator pos, const ACL *child);
+
+    /// Whether we should continue to match tree nodes or stop/pause.
+    bool keepMatching() const { return !finished() && !asyncInProgress(); }
+
+    /// whether markFinished() was called
+    bool finished() const { return finished_; }
+    /// async call has been started and has not finished (or failed) yet
+    bool asyncInProgress() const { return asyncStage_ != asyncNone; }
+    /// called when no more ACLs should be checked; sets the final answer and
+    /// prints a debugging message explaining the reason for that answer
+    void markFinished(const allow_t &newAnswer, const char *reason);
+
+    const allow_t &currentAnswer() const { return allow_; }
+
+    // XXX: ACLs that need request or reply have to use ACLFilledChecklist and
+    // should do their own checks so that we do not have to povide these two
+    // for ACL::checklistMatches to use
+    virtual bool hasRequest() const = 0;
+    virtual bool hasReply() const = 0;
+
+private:
+    /// Calls non-blocking check callback with the answer and destroys self.
+    void checkCallback(allow_t answer);
+
+    void matchAndFinish();
+
+    void changeState(AsyncState *);
+    AsyncState *asyncState() const;
+
+public:
+    const Acl::Tree *accessList;
+
+    ACLCB *callback;
+    void *callback_data;
+
+    /// Resumes non-blocking check started by nonBlockingCheck() and
+    /// suspended until some async operation updated Squid state.
+    void resumeNonBlockingCheck(AsyncState *state);
+
+private: /* internal methods */
+    /// Position of a child node within an ACL tree.
+    class Breadcrumb
+    {
+    public:
+        Breadcrumb(): parent(NULL) {}
+        Breadcrumb(const Acl::InnerNode *aParent, Acl::Nodes::const_iterator aPos): parent(aParent), position(aPos) {}
+        bool operator ==(const Breadcrumb &b) const { return parent == b.parent && (!parent || position == b.position); }
+        bool operator !=(const Breadcrumb &b) const { return !this->operator ==(b); }
+        void clear() { parent = NULL; }
+        const Acl::InnerNode *parent; ///< intermediate node in the ACL tree
+        Acl::Nodes::const_iterator position; ///< child position inside parent
+    };
+
+    /// possible outcomes when trying to match a single ACL node in a list
+    typedef enum { nmrMatch, nmrMismatch, nmrFinished, nmrNeedsAsync }
+    NodeMatchingResult;
+
+    /// prepare for checking ACLs; called once per check
+    void preCheck(const char *what);
+    bool prepNonBlocking();
+    void completeNonBlocking();
+    void calcImplicitAnswer();
+
+    bool asyncCaller_; ///< whether the caller supports async/slow ACLs
+    bool occupied_; ///< whether a check (fast or non-blocking) is in progress
+    bool finished_;
+    allow_t allow_;
+
+    enum AsyncStage { asyncNone, asyncStarting, asyncRunning, asyncFailed };
+    AsyncStage asyncStage_;
+    AsyncState *state_;
+    Breadcrumb matchLoc_; ///< location of the node running matches() now
+    Breadcrumb asyncLoc_; ///< currentNode_ that called goAsync()
+    unsigned asyncLoopDepth_; ///< how many times the current async state has resumed
+
+    bool callerGone();
+
+    /// suspended (due to an async lookup) matches() in the ACL tree
+    std::stack<Breadcrumb> matchPath;
+};
+
+#endif /* SQUID_ACLCHECKLIST_H */

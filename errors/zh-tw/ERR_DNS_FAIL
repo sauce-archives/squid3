@@ -1,0 +1,42 @@
+
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>錯誤: 欲連結之網址（URL）無法正確的傳回</title>
+<style type="text/css"><!-- 
+ %l
+
+body
+:lang(fa) { direction: rtl; font-size: 100%; font-family: Tahoma, Roya, sans-serif; float: right; }
+:lang(he) { direction: rtl; }
+ --></style>
+</head><body id="%c">
+<div id="titles">
+<h1>錯誤</h1>
+<h2>欲連結之網址（URL）無法正確的傳回</h2>
+</div>
+<hr>
+
+<div id="content">
+<p></p>
+
+<blockquote id="error">
+<p><b>無法將您輸入的網站主機位置轉譯成正確的 IP 位置 <q>%H</q></b></p>
+</blockquote>
+
+<p>The DNS server returned:</p>
+<blockquote id="data">
+<pre></pre>
+</blockquote>
+
+<p>This means that the cache was not able to resolve the hostname presented in the URL. Check if the address is correct.</p>
+
+<p></p>
+<br>
+</div>
+
+<hr>
+<div id="footer">
+<p></p>
+<!-- %c -->
+</div>
+</body></html>

@@ -1,0 +1,37 @@
+
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>에러: 요청된 URL을 가져올 수 없습니다</title>
+<style type="text/css"><!-- 
+ %l
+
+body
+:lang(fa) { direction: rtl; font-size: 100%; font-family: Tahoma, Roya, sans-serif; float: right; }
+:lang(he) { direction: rtl; }
+ --></style>
+</head><body id="%c">
+<div id="titles">
+<h1>에러</h1>
+<h2>요청된 URL을 가져올 수 없습니다.</h2>
+</div>
+<hr>
+
+<div id="content">
+<p></p>
+
+<blockquote id="error">
+<p><b>지원되지 않는 Request Method와 프로토콜입니다.</b></p>
+</blockquote>
+
+<p>Squid는 모든 접속 프로토콜에 대한 request method를 지원하지 않습니다. 한가지 예로, Gopher에서 POST request를 사용할 수 없습니다.</p>
+
+<p></p>
+<br>
+</div>
+
+<hr>
+<div id="footer">
+<p></p>
+<!-- %c -->
+</div>
+</body></html>

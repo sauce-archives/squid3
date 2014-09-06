@@ -1,0 +1,38 @@
+
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>VIRHE: Pääsy välityspalvelimen hallintaan evätty</title>
+<style type="text/css"><!-- 
+ %l
+
+body
+:lang(fa) { direction: rtl; font-size: 100%; font-family: Tahoma, Roya, sans-serif; float: right; }
+:lang(he) { direction: rtl; }
+ --></style>
+</head><body id="%c">
+<div id="titles">
+<h1>VIRHE</h1>
+<h2>Pääsy välityspalvelimen hallintaan evätty.</h2>
+</div>
+<hr>
+
+<div id="content">
+<p></p>
+
+<blockquote id="error">
+<p><b>Pääsy välityspalvelimen hallintaan evätty.</b></p>
+</blockquote>
+
+<p>Sinulla ei tällä hetkellä ole oikeutta pyytää osoitetta %U tästä välityspalvelimen hallinnasta ennen kuin olet osoittanut henkilöllisyytesi.</p>
+
+<p>Jos sinulla on hankaluuksia hekilöllisyytesi osoittamisessa, ota yhteyttä <a href="mailto:%w%W">välityspalvelimen ylläpitoon</a> tai jos sinä <em>olet</em> ylläpitäjä, lue Squidin dokumentaatiosta välityspalvelimen hallinnan käyttöliittymästä ja tarkista välityspalvelimen lokista tarkemmat virheilmoitukset.</p>
+
+<br>
+</div>
+
+<hr>
+<div id="footer">
+<p></p>
+<!-- %c -->
+</div>
+</body></html>
