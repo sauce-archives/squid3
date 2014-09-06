@@ -1,0 +1,5 @@
+usr/share/squid3/errors
+usr/share/squid3/icons
+usr/share/squid3/mib.txt
+etc/squid3/mime.conf
+etc/squid3/squid.conf.documented /usr/share/doc/squid3-common
