@@ -10,7 +10,7 @@ script:
 
 after_success:
   - tar cvzf "$ARTIFACT" ../*.deb
-  - git tag "$VERSION"
+  - git tag "$(echo $VERSION|tr '~' '-')"
 
 deploy:
   provider: releases
