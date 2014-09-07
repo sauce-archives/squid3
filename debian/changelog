@@ -1,3 +1,9 @@
+squid3 (3.4.6-0~sauce16) precise; urgency=low
+
+  * Fix .travis.yml.
+
+ -- Vilmos Nebehaj <vilmos@saucelabs.com>  Sun, 07 Sep 2014 22:35:25 +0000
+
 squid3 (3.4.6-0~sauce14) precise; urgency=low
 
   * Push only one commit in update_changelog.sh.
