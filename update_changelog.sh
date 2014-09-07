@@ -42,7 +42,7 @@ if [[ -n "$TRAVIS_BRANCH" ]]; then
     git add debian/changelog
     git commit -m "Update debian/changelog [ci skip]."
     git remote add github https://github.com/saucelabs/squid3.git
-    git push github $TRAVIS_BRANCH
+    git push github $(git rev-parse HEAD):$TRAVIS_BRANCH
 fi
 
 exit 0
