@@ -1,3 +1,9 @@
+squid3 (3.4.6-0~sauce14) precise; urgency=low
+
+  * Push only one commit in update_changelog.sh.
+
+ -- Vilmos Nebehaj <vilmos@saucelabs.com>  Sun, 07 Sep 2014 22:27:57 +0000
+
 squid3 (3.4.6-0~sauce1) precise; urgency=low
 
   * Use Squid 3.4.6.
