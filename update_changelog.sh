@@ -36,4 +36,14 @@ done
 
 debchange -r ""
 
+if [[ -n "$TRAVIS_BUILD_NUMBER" ]]; then
+    git config credential.helper "store --file=~/.gitcredentials"
+    echo "https://${GH_TOKEN}:@github.com" > ~/.gitcredentials
+    git config user.name "$COMMITTER_NAME"
+    git config user.email "$COMMITTER_EMAIL"
+    git add debian/changelog
+    git commit -m "Update debian/changelog [ci skip]."
+    git push
+fi
+
 exit 0
