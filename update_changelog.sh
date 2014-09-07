@@ -35,8 +35,8 @@ done
 debchange -r ""
 
 if [[ -n "$TRAVIS_BRANCH" ]]; then
-    git config credential.helper "store --file=~/.gitcredentials"
-    echo "https://${GH_TOKEN}:@github.com" > ~/.gitcredentials
+    git config credential.helper "store --file=.git/credentials"
+    echo "https://${GH_TOKEN}:@github.com" > .git/credentials
     git config user.name "$COMMITTER_NAME"
     git config user.email "$COMMITTER_EMAIL"
     git add debian/changelog
