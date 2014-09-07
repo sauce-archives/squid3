@@ -1,3 +1,9 @@
+squid3 (3.4.6-0~sauce18) precise; urgency=low
+
+  * Update tokens.
+
+ -- Vilmos Nebehaj <vilmos@saucelabs.com>  Sun, 07 Sep 2014 22:55:50 +0000
+
 squid3 (3.4.6-0~sauce16) precise; urgency=low
 
   * Fix .travis.yml.
