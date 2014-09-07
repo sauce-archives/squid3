@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 VERSION=$1
 if [[ -z "$VERSION" ]]; then
@@ -22,14 +22,12 @@ if [[ -z "$TRAVIS_COMMIT_RANGE" ]]; then
 else
     COMMITS="$(git rev-list --abbrev-commit $TRAVIS_COMMIT_RANGE|tr '\n' ' ')"
 fi
-echo "commits: $COMMITS"
 
 #git log --oneline|awk '{$1=""; print substr($0,2)}'|while read -r line; do
 for commit in $COMMITS; do
     line="$(git show -s --format=%s $commit)"
     grep "$line" debian/changelog > /dev/null 2>&1
     if [[ $? != 0 ]]; then
-        echo "Adding $commit"
         debchange -v $VERSION "$line" || exit 1
     fi
 done
