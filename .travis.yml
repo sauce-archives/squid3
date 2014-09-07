@@ -12,6 +12,10 @@ after_success:
   - tar cvzf "$ARTIFACT" ../*.deb
   - git tag "$(echo $VERSION|tr '~' '-')"
 
+branches:
+  except:
+    - /^[0-9]/
+
 deploy:
   provider: releases
   api-key: "$API_KEY"
