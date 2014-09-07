@@ -4,4 +4,5 @@ before_install:
   - sudo apt-get install -y devscripts autoconf automake libtool libldap2-dev libpam0g-dev libdb-dev cdbs libsasl2-dev debhelper libcppunit-dev libkrb5-dev comerr-dev libcap2-dev libexpat1-dev libxml2-dev autotools-dev libltdl-dev
 
 script:
+  - autoreconf -i
   - debuild -i -us -uc -b
