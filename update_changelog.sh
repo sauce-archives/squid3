@@ -34,14 +34,15 @@ done
 
 debchange -r ""
 
-if [[ -n "$TRAVIS_BUILD_NUMBER" ]]; then
+if [[ -n "$TRAVIS_BRANCH" ]]; then
     git config credential.helper "store --file=~/.gitcredentials"
     echo "https://${GH_TOKEN}:@github.com" > ~/.gitcredentials
     git config user.name "$COMMITTER_NAME"
     git config user.email "$COMMITTER_EMAIL"
     git add debian/changelog
     git commit -m "Update debian/changelog [ci skip]."
-    git push
+    git remote add github https://github.com/saucelabs/squid3.git
+    git push github $TRAVIS_BRANCH
 fi
 
 exit 0
