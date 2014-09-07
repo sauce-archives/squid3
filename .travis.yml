@@ -1,8 +1,26 @@
 language: c
 
 before_install:
-  - sudo apt-get install -y devscripts autoconf automake libtool libldap2-dev libpam0g-dev libdb-dev cdbs libsasl2-dev debhelper libcppunit-dev libkrb5-dev comerr-dev libcap2-dev libexpat1-dev libxml2-dev autotools-dev libltdl-dev
+  - sudo apt-get install -qq devscripts autoconf automake libtool libldap2-dev libpam0g-dev libdb-dev cdbs libsasl2-dev debhelper libcppunit-dev libkrb5-dev comerr-dev libcap2-dev libexpat1-dev libxml2-dev autotools-dev libltdl-dev
+  - ./update_changelog.sh "$VERSION"
 
 script:
   - autoreconf -i
   - debuild -i -us -uc -b
+
+after_success:
+  - tar cvzf "$ARTIFACT" ../*.deb
+  - git tag "$VERSION"
+
+deploy:
+  provider: releases
+  api-key: "$API_KEY"
+  file: "$ARTIFACT"
+  skip_cleanup: true
+
+env:
+  global:
+    - UPSTREAM_VERSION=3.4.6
+    - VERSION=$UPSTREAM_VERSION-0~sauce$TRAVIS_BUILD_NUMBER
+    - ARTIFACT=/tmp/squid3-$VERSION.tar.gz
+    - secure: "d/CbsxiQUIJJYI+ZmETUXfmkMOhoZtPwkeKa2wsKxvsYZLe96Rw/7ZMTZJiORXj4axE/t4TeFghhMMvwUmXtrFOiKnEqB3Eq7wIeV/mbVWfijD4EG857Deevd0G035uNd4wj+V9rTtanQgYlyxNLtKQ50jcP56HguZGo06haV60="
