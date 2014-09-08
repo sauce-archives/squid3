@@ -1,3 +1,9 @@
+squid3 (3.4.6-0~sauce19) precise; urgency=low
+
+  * Disable -march=native compiler flag.
+
+ -- Vilmos Nebehaj <vilmos@saucelabs.com>  Mon, 08 Sep 2014 13:10:21 +0000
+
 squid3 (3.4.6-0~sauce18) precise; urgency=low
 
   * Update tokens.
