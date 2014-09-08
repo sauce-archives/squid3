@@ -36,6 +36,7 @@ DEB_CONFIGURE_EXTRA_FLAGS := --datadir=/usr/share/squid3 \
 		--enable-wccpv2 \
 		--enable-ssl \
 		--enable-ssl-crtd \
+		--disable-arch-native \
 		--disable-translation \
 		--with-logdir=/var/log/squid3 \
 		--with-pidfile=/var/run/squid3.pid \
