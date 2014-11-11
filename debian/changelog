@@ -1,3 +1,27 @@
+squid3 (3.4.6-0~sauce19.4) trusty; urgency=medium
+
+  * Fix: apply SSL bump patch.
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Tue, 11 Nov 2014 16:50:01 +0100
+
+squid3 (3.4.6-0~sauce19.3) trusty; urgency=medium
+
+  * Make build depend on libssl-dev.
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Tue, 11 Nov 2014 15:39:31 +0100
+
+squid3 (3.4.6-0~sauce19.2) trusty; urgency=medium
+
+  * Remove cppunit configure flag.
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Tue, 11 Nov 2014 15:33:13 +0100
+
+squid3 (3.4.6-0~sauce19.1) trusty; urgency=medium
+
+  * Build on trusty.
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Tue, 11 Nov 2014 12:57:31 +0100
+
 squid3 (3.4.6-0~sauce19) precise; urgency=low
 
   * Disable -march=native compiler flag.
