@@ -15,7 +15,6 @@ DEB_INSTALL_DOCS_squid3-common := CONTRIBUTORS CREDITS QUICKSTART RELEASENOTES.h
 DEB_CONFIGURE_EXTRA_FLAGS := --datadir=/usr/share/squid3 \
 		--sysconfdir=/etc/squid3 \
 		--mandir=/usr/share/man \
-		--with-cppunit-basedir=/usr \
 		--enable-inline \
 		--enable-async-io=8 \
 		--enable-storeio="ufs,aufs,diskd" \
