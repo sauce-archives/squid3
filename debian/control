@@ -5,7 +5,7 @@ Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 XSBC-Original-Maintainer: Luigi Gangitano <luigi@debian.org>
 Homepage: http://www.squid-cache.org
 Standards-Version: 3.9.2
-Build-Depends: libldap2-dev, libpam0g-dev, libdb-dev, cdbs, libsasl2-dev, debhelper (>=5), libcppunit-dev, libkrb5-dev, comerr-dev, libcap2-dev [linux-any], libexpat1-dev, libxml2-dev, autotools-dev, libltdl-dev
+Build-Depends: libldap2-dev, libpam0g-dev, libdb-dev, cdbs, libsasl2-dev, debhelper (>=5), libcppunit-dev, libkrb5-dev, comerr-dev, libcap2-dev [linux-any], libexpat1-dev, libxml2-dev, autotools-dev, libltdl-dev, libssl-dev
 
 Package: squid3
 Architecture: any
