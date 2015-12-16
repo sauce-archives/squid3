@@ -1,3 +1,9 @@
+squid3 (3.4.6-0~sauce19.5) trusty; urgency=medium
+
+  * Bump version
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Tue, 15 Dec 2015 20:54:36 -0800
+
 squid3 (3.4.6-0~sauce19.4) trusty; urgency=medium
 
   * Fix: apply SSL bump patch.
