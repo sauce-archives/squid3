@@ -1,35 +1,12 @@
-
 /*
- * DEBUG: section 23    URL Parsing
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 23    URL Parsing */
 
 #include "squid.h"
 #include "globals.h"
@@ -38,7 +15,6 @@
 #include "SquidConfig.h"
 #include "SquidString.h"
 #include "URL.h"
-#include "URLScheme.h"
 
 static HttpRequest *urlParseFinish(const HttpRequestMethod& method,
                                    const AnyP::ProtocolType protocol,
@@ -147,9 +123,6 @@ urlParseProtocol(const char *b, const char *e)
     if (strncasecmp(b, "whois", len) == 0)
         return AnyP::PROTO_WHOIS;
 
-    if (strncasecmp(b, "internal", len) == 0)
-        return AnyP::PROTO_INTERNAL;
-
     return AnyP::PROTO_NONE;
 }
 
@@ -180,8 +153,6 @@ urlDefaultPort(AnyP::ProtocolType p)
         return 210;
 
     case AnyP::PROTO_CACHE_OBJECT:
-
-    case AnyP::PROTO_INTERNAL:
         return CACHE_HTTP_PORT;
 
     case AnyP::PROTO_WHOIS:
@@ -319,6 +290,8 @@ urlParse(const HttpRequestMethod& method, char *url, HttpRequest *request)
             *t = 0;
             strncpy((char *) host, t + 1, sizeof(host)-1);
             host[sizeof(host)-1] = '\0';
+            // Bug 4498: URL-unescape the login info after extraction
+            rfc1738_unescape(login);
         }
 
         /* Is there any host information? (we should eventually parse it above) */
@@ -504,25 +477,31 @@ urlCanonical(HttpRequest * request)
     if (request->canonical)
         return request->canonical;
 
-    if (request->protocol == AnyP::PROTO_URN) {
+    if (request->url.getScheme() == AnyP::PROTO_URN) {
         snprintf(urlbuf, MAX_URL, "urn:" SQUIDSTRINGPH,
                  SQUIDSTRINGPRINT(request->urlpath));
-    } else if (request->method.id() == Http::METHOD_CONNECT) {
-        snprintf(urlbuf, MAX_URL, "%s:%d", request->GetHost(), request->port);
     } else {
-        portbuf[0] = '\0';
+        switch (request->method.id()) {
 
-        if (request->port != urlDefaultPort(request->protocol))
-            snprintf(portbuf, 32, ":%d", request->port);
+        case Http::METHOD_CONNECT:
+            snprintf(urlbuf, MAX_URL, "%s:%d", request->GetHost(), request->port);
+            break;
 
-        const URLScheme sch = request->protocol; // temporary, until bug 1961 URL handling is fixed.
-        snprintf(urlbuf, MAX_URL, "%s://%s%s%s%s" SQUIDSTRINGPH,
-                 sch.const_str(),
-                 request->login,
-                 *request->login ? "@" : null_string,
-                 request->GetHost(),
-                 portbuf,
-                 SQUIDSTRINGPRINT(request->urlpath));
+        default: {
+            portbuf[0] = '\0';
+
+            if (request->port != urlDefaultPort(request->url.getScheme()))
+                snprintf(portbuf, 32, ":%d", request->port);
+
+            snprintf(urlbuf, MAX_URL, "%s://%s%s%s%s" SQUIDSTRINGPH,
+                     request->url.getScheme().c_str(),
+                     request->login,
+                     *request->login ? "@" : null_string,
+                     request->GetHost(),
+                     portbuf,
+                     SQUIDSTRINGPRINT(request->urlpath));
+        }
+        }
     }
 
     return (request->canonical = xstrdup(urlbuf));
@@ -540,42 +519,46 @@ urlCanonicalClean(const HttpRequest * request)
     LOCAL_ARRAY(char, loginbuf, MAX_LOGIN_SZ + 1);
     char *t;
 
-    if (request->protocol == AnyP::PROTO_URN) {
+    if (request->url.getScheme() == AnyP::PROTO_URN) {
         snprintf(buf, MAX_URL, "urn:" SQUIDSTRINGPH,
                  SQUIDSTRINGPRINT(request->urlpath));
-    } else if (request->method.id() == Http::METHOD_CONNECT) {
-        snprintf(buf, MAX_URL, "%s:%d", request->GetHost(), request->port);
     } else {
-        portbuf[0] = '\0';
+        switch (request->method.id()) {
 
-        if (request->port != urlDefaultPort(request->protocol))
-            snprintf(portbuf, 32, ":%d", request->port);
+        case Http::METHOD_CONNECT:
+            snprintf(buf, MAX_URL, "%s:%d", request->GetHost(), request->port);
+            break;
 
-        loginbuf[0] = '\0';
+        default: {
+            portbuf[0] = '\0';
 
-        if ((int) strlen(request->login) > 0) {
-            strcpy(loginbuf, request->login);
+            if (request->port != urlDefaultPort(request->url.getScheme()))
+                snprintf(portbuf, 32, ":%d", request->port);
 
-            if ((t = strchr(loginbuf, ':')))
-                *t = '\0';
+            loginbuf[0] = '\0';
 
-            strcat(loginbuf, "@");
+            if ((int) strlen(request->login) > 0) {
+                strcpy(loginbuf, request->login);
+
+                if ((t = strchr(loginbuf, ':')))
+                    *t = '\0';
+
+                strcat(loginbuf, "@");
+            }
+
+            snprintf(buf, MAX_URL, "%s://%s%s%s" SQUIDSTRINGPH,
+                     request->url.getScheme().c_str(),
+                     loginbuf,
+                     request->GetHost(),
+                     portbuf,
+                     SQUIDSTRINGPRINT(request->urlpath));
+
+            // strip arguments AFTER a question-mark
+            if (Config.onoff.strip_query_terms)
+                if ((t = strchr(buf, '?')))
+                    *(++t) = '\0';
         }
-
-        const URLScheme sch = request->protocol; // temporary, until bug 1961 URL handling is fixed.
-        snprintf(buf, MAX_URL, "%s://%s%s%s" SQUIDSTRINGPH,
-                 sch.const_str(),
-                 loginbuf,
-                 request->GetHost(),
-                 portbuf,
-                 SQUIDSTRINGPRINT(request->urlpath));
-        /*
-         * strip arguments AFTER a question-mark
-         */
-
-        if (Config.onoff.strip_query_terms)
-            if ((t = strchr(buf, '?')))
-                *(++t) = '\0';
+        }
     }
 
     if (stringHasCntl(buf))
@@ -654,7 +637,7 @@ urlMakeAbsolute(const HttpRequest * req, const char *relUrl)
 
     char *urlbuf = (char *)xmalloc(MAX_URL * sizeof(char));
 
-    if (req->protocol == AnyP::PROTO_URN) {
+    if (req->url.getScheme() == AnyP::PROTO_URN) {
         snprintf(urlbuf, MAX_URL, "urn:" SQUIDSTRINGPH,
                  SQUIDSTRINGPRINT(req->urlpath));
         return (urlbuf);
@@ -662,10 +645,9 @@ urlMakeAbsolute(const HttpRequest * req, const char *relUrl)
 
     size_t urllen;
 
-    const URLScheme sch = req->protocol; // temporary, until bug 1961 URL handling is fixed.
-    if (req->port != urlDefaultPort(req->protocol)) {
+    if (req->port != urlDefaultPort(req->url.getScheme())) {
         urllen = snprintf(urlbuf, MAX_URL, "%s://%s%s%s:%d",
-                          sch.const_str(),
+                          req->url.getScheme().c_str(),
                           req->login,
                           *req->login ? "@" : null_string,
                           req->GetHost(),
@@ -673,7 +655,7 @@ urlMakeAbsolute(const HttpRequest * req, const char *relUrl)
                          );
     } else {
         urllen = snprintf(urlbuf, MAX_URL, "%s://%s%s%s",
-                          sch.const_str(),
+                          req->url.getScheme().c_str(),
                           req->login,
                           *req->login ? "@" : null_string,
                           req->GetHost()
@@ -707,30 +689,8 @@ urlMakeAbsolute(const HttpRequest * req, const char *relUrl)
     return (urlbuf);
 }
 
-/*
- * matchDomainName() compares a hostname with a domainname according
- * to the following rules:
- *
- *    HOST          DOMAIN        MATCH?
- * ------------- -------------    ------
- *    foo.com       foo.com         YES
- *   .foo.com       foo.com         YES
- *  x.foo.com       foo.com          NO
- *    foo.com      .foo.com         YES
- *   .foo.com      .foo.com         YES
- *  x.foo.com      .foo.com         YES
- *
- *  We strip leading dots on hosts (but not domains!) so that
- *  ".foo.com" is is always the same as "foo.com".
- *
- *  Return values:
- *     0 means the host matches the domain
- *     1 means the host is greater than the domain
- *    -1 means the host is less than the domain
- */
-
 int
-matchDomainName(const char *h, const char *d)
+matchDomainName(const char *h, const char *d, bool honorWildcards)
 {
     int dl;
     int hl;
@@ -787,6 +747,13 @@ matchDomainName(const char *h, const char *d)
     /*
      * We found different characters in the same position (from the end).
      */
+
+    // If the h has a form of "*.foo.com" and d has a form of "x.foo.com"
+    // then the h[hl] points to '*', h[hl+1] to '.' and d[dl] to 'x'
+    // The following checks are safe, the "h[hl + 1]" in the worst case is '\0'.
+    if (honorWildcards && h[hl] == '*' && h[hl + 1] == '.')
+        return 0;
+
     /*
      * If one of those character is '.' then its special.  In order
      * for splay tree sorting to work properly, "x-foo.com" must
@@ -831,7 +798,7 @@ urlCheckRequest(const HttpRequest * r)
         return 1;
 
     /* does method match the protocol? */
-    switch (r->protocol) {
+    switch (r->url.getScheme()) {
 
     case AnyP::PROTO_URN:
 
@@ -859,7 +826,7 @@ urlCheckRequest(const HttpRequest * r)
         break;
 
     case AnyP::PROTO_HTTPS:
-#if USE_SSL
+#if USE_OPENSSL
 
         rc = 1;
 
@@ -981,8 +948,3 @@ URLHostName::extract(char const *aUrl)
     return Host;
 }
 
-URL::URL() : scheme()
-{}
-
-URL::URL(URLScheme const &aScheme): scheme(aScheme)
-{}

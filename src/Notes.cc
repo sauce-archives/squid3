@@ -1,40 +1,20 @@
 /*
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #include "squid.h"
-#include "globals.h"
 #include "AccessLogEntry.h"
 #include "acl/FilledChecklist.h"
 #include "acl/Gadgets.h"
+#include "client_side.h"
 #include "ConfigParser.h"
-#include "HttpRequest.h"
+#include "globals.h"
 #include "HttpReply.h"
+#include "HttpRequest.h"
 #include "SquidConfig.h"
 #include "Store.h"
 #include "StrList.h"
@@ -56,7 +36,7 @@ Note::addValue(const String &value)
 }
 
 const char *
-Note::match(HttpRequest *request, HttpReply *reply)
+Note::match(HttpRequest *request, HttpReply *reply, const AccessLogEntry::Pointer &al)
 {
 
     typedef Values::iterator VLI;
@@ -69,8 +49,15 @@ Note::match(HttpRequest *request, HttpReply *reply)
         const int ret= ch.fastCheck((*i)->aclList);
         debugs(93, 5, HERE << "Check for header name: " << key << ": " << (*i)->value
                <<", HttpRequest: " << request << " HttpReply: " << reply << " matched: " << ret);
-        if (ret == ACCESS_ALLOWED)
-            return (*i)->value.termedBuf();
+        if (ret == ACCESS_ALLOWED) {
+            if (al != NULL && (*i)->valueFormat != NULL) {
+                static MemBuf mb;
+                mb.reset();
+                (*i)->valueFormat->assemble(mb, al, 0);
+                return mb.content();
+            } else
+                return (*i)->value.termedBuf();
+        }
     }
     return NULL;
 }
@@ -92,9 +79,11 @@ Notes::add(const String &noteKey)
 Note::Pointer
 Notes::parse(ConfigParser &parser)
 {
-    String key, value;
-    ConfigParser::ParseString(&key);
-    ConfigParser::ParseQuotedString(&value);
+    String key = ConfigParser::NextToken();
+    ConfigParser::EnableMacros();
+    String value = ConfigParser::NextQuotedToken();
+    ConfigParser::DisableMacros();
+    bool valueWasQuoted = ConfigParser::LastTokenWasQuoted();
     Note::Pointer note = add(key);
     Note::Value::Pointer noteValue = note->addValue(value);
 
@@ -102,7 +91,10 @@ Notes::parse(ConfigParser &parser)
     label.append('=');
     label.append(value);
     aclParseAclList(parser, &noteValue->aclList, label.termedBuf());
-
+    if (formattedValues && valueWasQuoted) {
+        noteValue->valueFormat =  new Format::Format(descr ? descr : "Notes");
+        noteValue->valueFormat->parse(value.termedBuf());
+    }
     if (blacklisted) {
         for (int i = 0; blacklisted[i] != NULL; ++i) {
             if (note->key.caseCmp(blacklisted[i]) == 0) {
@@ -134,13 +126,15 @@ Notes::dump(StoreEntry *entry, const char *key)
 void
 Notes::clean()
 {
-    notes.clean();
+    notes.clear();
 }
 
 NotePairs::~NotePairs()
 {
-    while (!entries.empty())
-        delete entries.pop_back();
+    while (!entries.empty()) {
+        delete entries.back();
+        entries.pop_back();
+    }
 }
 
 const char *
@@ -148,7 +142,7 @@ NotePairs::find(const char *noteKey, const char *sep) const
 {
     static String value;
     value.clean();
-    for (Vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
+    for (std::vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
         if ((*i)->name.cmp(noteKey) == 0) {
             if (value.size())
                 value.append(sep);
@@ -163,7 +157,7 @@ NotePairs::toString(const char *sep) const
 {
     static String value;
     value.clean();
-    for (Vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
+    for (std::vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
         value.append((*i)->name);
         value.append(": ");
         value.append((*i)->value);
@@ -175,7 +169,7 @@ NotePairs::toString(const char *sep) const
 const char *
 NotePairs::findFirst(const char *noteKey) const
 {
-    for (Vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
+    for (std::vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
         if ((*i)->name.cmp(noteKey) == 0)
             return (*i)->value.termedBuf();
     }
@@ -186,6 +180,20 @@ void
 NotePairs::add(const char *key, const char *note)
 {
     entries.push_back(new NotePairs::Entry(key, note));
+}
+
+void
+NotePairs::remove(const char *key)
+{
+    std::vector<NotePairs::Entry *>::iterator i = entries.begin();
+    while (i != entries.end()) {
+        if ((*i)->name.cmp(key) == 0) {
+            delete *i;
+            i = entries.erase(i);
+        } else {
+            ++i;
+        }
+    }
 }
 
 void
@@ -205,7 +213,7 @@ NotePairs::addStrList(const char *key, const char *values)
 bool
 NotePairs::hasPair(const char *key, const char *value) const
 {
-    for (Vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
+    for (std::vector<NotePairs::Entry *>::const_iterator  i = entries.begin(); i != entries.end(); ++i) {
         if ((*i)->name.cmp(key) == 0 && (*i)->value.cmp(value) == 0)
             return true;
     }
@@ -215,7 +223,7 @@ NotePairs::hasPair(const char *key, const char *value) const
 void
 NotePairs::append(const NotePairs *src)
 {
-    for (Vector<NotePairs::Entry *>::const_iterator  i = src->entries.begin(); i != src->entries.end(); ++i) {
+    for (std::vector<NotePairs::Entry *>::const_iterator  i = src->entries.begin(); i != src->entries.end(); ++i) {
         entries.push_back(new NotePairs::Entry((*i)->name.termedBuf(), (*i)->value.termedBuf()));
     }
 }
@@ -223,10 +231,19 @@ NotePairs::append(const NotePairs *src)
 void
 NotePairs::appendNewOnly(const NotePairs *src)
 {
-    for (Vector<NotePairs::Entry *>::const_iterator  i = src->entries.begin(); i != src->entries.end(); ++i) {
+    for (std::vector<NotePairs::Entry *>::const_iterator  i = src->entries.begin(); i != src->entries.end(); ++i) {
         if (!hasPair((*i)->name.termedBuf(), (*i)->value.termedBuf()))
             entries.push_back(new NotePairs::Entry((*i)->name.termedBuf(), (*i)->value.termedBuf()));
     }
+}
+
+void
+NotePairs::replaceOrAdd(const NotePairs *src)
+{
+    for (std::vector<NotePairs::Entry *>::const_iterator  i = src->entries.begin(); i != src->entries.end(); ++i) {
+        remove((*i)->name.termedBuf());
+    }
+    append(src);
 }
 
 NotePairs &
@@ -244,3 +261,17 @@ SyncNotes(AccessLogEntry &ale, HttpRequest &request)
     }
     return *ale.notes;
 }
+
+void
+UpdateRequestNotes(ConnStateData *csd, HttpRequest &request, NotePairs const &helperNotes)
+{
+    // Tag client connection if the helper responded with clt_conn_tag=tag.
+    if (const char *connTag = helperNotes.findFirst("clt_conn_tag")) {
+        if (csd)
+            csd->connectionTag(connTag);
+    }
+    if (!request.notes)
+        request.notes = new NotePairs;
+    request.notes->replaceOrAdd(&helperNotes);
+}
+

@@ -1,4 +1,12 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * This is a helper for the external ACL interface for Squid Cache
  * Copyright (C) 2002 Rodrigo Albani de Campos (rodrigo@geekbunker.org)
  *
@@ -58,12 +66,8 @@
 #include "rfc1738.h"
 #include "util.h"
 
-#if HAVE_STDIO_H
-#include <stdio.h>
-#endif
-#if HAVE_STRING_H
-#include <string.h>
-#endif
+#include <cctype>
+#include <cstring>
 #if HAVE_GRP_H
 #include <grp.h>
 #endif
@@ -72,9 +76,6 @@
 #endif
 #if HAVE_PWD_H
 #include <pwd.h>
-#endif
-#if HAVE_CTYPE_H
-#include <ctype.h>
 #endif
 
 /*
@@ -175,7 +176,7 @@ main(int argc, char *argv[])
             } else {
                 fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
             }
-            // fall through to display help texts.
+        // fall through to display help texts.
 
         default:
             usage(argv[0]);
@@ -237,3 +238,4 @@ main(int argc, char *argv[])
     }
     return 0;
 }
+

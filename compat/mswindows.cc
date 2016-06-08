@@ -1,35 +1,13 @@
 /*
- * Windows support
- * AUTHOR: Guido Serassio <serassio@squid-cache.org>
- * inspired by previous work by Romeo Anghelache & Eric Stern.
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* Windows support
+ * Inspired by previous work by Romeo Anghelache & Eric Stern. */
 
 #include "squid.h"
 
@@ -41,10 +19,9 @@
 #define sys_nerr _sys_nerr
 
 #undef assert
-#include <assert.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstring>
 #include <fcntl.h>
-#include <string.h>
 #include <sys/timeb.h>
 #if HAVE_WIN32_PSAPI
 #include <psapi.h>
@@ -150,42 +127,6 @@ gettimeofday(struct timeval *pcur_time, void *tzp)
 
 #if !_SQUID_MINGW_
 int
-statfs(const char *path, struct statfs *sfs)
-{
-    char drive[4];
-    DWORD spc, bps, freec, totalc;
-    DWORD vsn, maxlen, flags;
-
-    if (!sfs) {
-        errno = EINVAL;
-        return -1;
-    }
-    strncpy(drive, path, 2);
-    drive[2] = '\0';
-    strcat(drive, "\\");
-
-    if (!GetDiskFreeSpace(drive, &spc, &bps, &freec, &totalc)) {
-        errno = ENOENT;
-        return -1;
-    }
-    if (!GetVolumeInformation(drive, NULL, 0, &vsn, &maxlen, &flags, NULL, 0)) {
-        errno = ENOENT;
-        return -1;
-    }
-    sfs->f_type = flags;
-    sfs->f_bsize = spc * bps;
-    sfs->f_blocks = totalc;
-    sfs->f_bfree = sfs->f_bavail = freec;
-    sfs->f_files = -1;
-    sfs->f_ffree = -1;
-    sfs->f_fsid = vsn;
-    sfs->f_namelen = maxlen;
-    return 0;
-}
-#endif
-
-#if !_SQUID_MINGW_
-int
 WIN32_ftruncate(int fd, off_t size)
 {
     HANDLE hfile;
@@ -267,8 +208,8 @@ _free_osfhnd(int filehandle)
         _osfhnd(filehandle) = (long) INVALID_HANDLE_VALUE;
         return (0);
     } else {
-        errno = EBADF;		/* bad handle */
-        _doserrno = 0L;		/* not an OS error */
+        errno = EBADF;      /* bad handle */
+        _doserrno = 0L;     /* not an OS error */
         return -1;
     }
 }
@@ -414,3 +355,4 @@ syslog(int priority, const char *fmt, ...)
 
 /* note: this is all MSWindows-specific code; all of it should be conditional */
 #endif /* _SQUID_WINDOWS_ */
+

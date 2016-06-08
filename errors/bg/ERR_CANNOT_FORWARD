@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ГРЕШКА: Заявената страница е недостъпна.</title>
 <style type="text/css"><!-- 
@@ -23,13 +24,13 @@ body
 <p><b>Заявката не може да бъде пренасочена в този момент.</b></p>
 </blockquote>
 
-<p></p>
+<p>This request could not be forwarded to the origin server or to any parent caches.</p>
 
 <p>Възможни грешки:</p>
 <ul>
-<li id="network-down"></li>
-<li id="no-peer"></li>
-<li id="permission-denied"></li>
+<li id="network-down">An Internet connection needed to access this domains origin servers may be down.</li>
+<li id="no-peer">All configured parent caches may be currently unreachable.</li>
+<li id="permission-denied">The administrator may not allow this cache to make direct connections to origin servers.</li>
 </ul>
 
 <p>Вашият кеш администратор е <a href="mailto:%w%W">%w</a>.</p>

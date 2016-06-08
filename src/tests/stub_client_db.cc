@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "client_db.h"
 
@@ -18,3 +26,4 @@ ClientInfo *clientdbGetInfo(const Ip::Address &addr) STUB_RETVAL(NULL)
 #endif
 void clientOpenListenSockets(void) STUB
 void clientHttpConnectionsClose(void) STUB
+

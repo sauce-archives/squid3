@@ -1,33 +1,12 @@
 /*
- * DEBUG: section 11    Hypertext Transfer Protocol (HTTP)
- * AUTHOR: Harvest Derived
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 11    Hypertext Transfer Protocol (HTTP) */
 
 /*
  * Anonymizing patch by lutz@as-node.jena.thur.de
@@ -36,9 +15,9 @@
 
 #include "squid.h"
 #include "acl/FilledChecklist.h"
-#include "base64.h"
 #include "base/AsyncJobCalls.h"
 #include "base/TextException.h"
+#include "base64.h"
 #include "CachePeer.h"
 #include "ChunkedCodingParser.h"
 #include "client_side.h"
@@ -49,8 +28,8 @@
 #include "fd.h"
 #include "fde.h"
 #include "globals.h"
-#include "HttpControlMsg.h"
 #include "http.h"
+#include "HttpControlMsg.h"
 #include "HttpHdrCc.h"
 #include "HttpHdrContRange.h"
 #include "HttpHdrSc.h"
@@ -86,11 +65,11 @@
 
 #define SQUID_ENTER_THROWING_CODE() try {
 #define SQUID_EXIT_THROWING_CODE(status) \
-  	status = true; \
+    status = true; \
     } \
     catch (const std::exception &e) { \
-	debugs (11, 1, "Exception error:" << e.what()); \
-	status = false; \
+    debugs (11, 1, "Exception error:" << e.what()); \
+    status = false; \
     }
 
 CBDATA_CLASS_INIT(HttpStateData);
@@ -103,9 +82,9 @@ static void copyOneHeaderFromClientsideRequestToUpstreamRequest(const HttpHeader
 //Declared in HttpHeaderTools.cc
 void httpHdrAdd(HttpHeader *heads, HttpRequest *request, const AccessLogEntryPointer &al, HeaderWithAclList &headers_add);
 
-HttpStateData::HttpStateData(FwdState *theFwdState) : AsyncJob("HttpStateData"), ServerStateData(theFwdState),
-        lastChunk(0), header_bytes_read(0), reply_bytes_read(0),
-        body_bytes_truncated(0), httpChunkDecoder(NULL)
+HttpStateData::HttpStateData(FwdState *theFwdState) : AsyncJob("HttpStateData"), Client(theFwdState),
+    lastChunk(0), header_bytes_read(0), reply_bytes_read(0),
+    body_bytes_truncated(0), httpChunkDecoder(NULL)
 {
     debugs(11,5,HERE << "HttpStateData " << this << " created");
     ignoreCacheControl = false;
@@ -147,7 +126,7 @@ HttpStateData::HttpStateData(FwdState *theFwdState) : AsyncJob("HttpStateData"),
 HttpStateData::~HttpStateData()
 {
     /*
-     * don't forget that ~ServerStateData() gets called automatically
+     * don't forget that ~Client() gets called automatically
      */
 
     if (!readBuf->isNull())
@@ -173,6 +152,7 @@ void
 HttpStateData::httpStateConnClosed(const CommCloseCbParams &params)
 {
     debugs(11, 5, "httpStateFree: FD " << params.fd << ", httpState=" << params.data);
+    doneWithFwd = "httpStateConnClosed()"; // assume FwdState is monitoring too
     mustStop("HttpStateData::httpStateConnClosed");
 }
 
@@ -185,9 +165,12 @@ HttpStateData::httpTimeout(const CommTimeoutCbParams &params)
         fwd->fail(new ErrorState(ERR_READ_TIMEOUT, Http::scGatewayTimeout, fwd->request));
     }
 
-    serverConnection->close();
+    closeServer();
+    mustStop("HttpStateData::httpTimeout");
 }
 
+/// Remove an existing public store entry if the incoming response (to be
+/// stored in a currently private entry) is going to invalidate it.
 static void
 httpMaybeRemovePublic(StoreEntry * e, Http::StatusCode status)
 {
@@ -195,6 +178,8 @@ httpMaybeRemovePublic(StoreEntry * e, Http::StatusCode status)
     int forbidden = 0;
     StoreEntry *pe;
 
+    // If the incoming response already goes into a public entry, then there is
+    // nothing to remove. This protects ready-for-collapsing entries as well.
     if (!EBIT_TEST(e->flags, KEY_PRIVATE))
         return;
 
@@ -255,7 +240,7 @@ httpMaybeRemovePublic(StoreEntry * e, Http::StatusCode status)
     if (e->mem_obj->request)
         pe = storeGetPublicByRequest(e->mem_obj->request);
     else
-        pe = storeGetPublic(e->mem_obj->url, e->mem_obj->method);
+        pe = storeGetPublic(e->mem_obj->storeId(), e->mem_obj->method);
 
     if (pe != NULL) {
         assert(e != pe);
@@ -272,7 +257,7 @@ httpMaybeRemovePublic(StoreEntry * e, Http::StatusCode status)
     if (e->mem_obj->request)
         pe = storeGetPublicByRequestMethod(e->mem_obj->request, Http::METHOD_HEAD);
     else
-        pe = storeGetPublic(e->mem_obj->url, Http::METHOD_HEAD);
+        pe = storeGetPublic(e->mem_obj->storeId(), Http::METHOD_HEAD);
 
     if (pe != NULL) {
         assert(e != pe);
@@ -335,11 +320,16 @@ HttpStateData::cacheableReply()
      * condition
      */
 #define REFRESH_OVERRIDE(flag) \
-    ((R = (R ? R : refreshLimits(entry->mem_obj->url))) , \
+    ((R = (R ? R : refreshLimits(entry->mem_obj->storeId()))) , \
     (R && R->flags.flag))
 #else
 #define REFRESH_OVERRIDE(flag) 0
 #endif
+
+    if (EBIT_TEST(entry->flags, RELEASE_REQUEST)) {
+        debugs(22, 3, "NO because " << *entry << " has been released.");
+        return 0;
+    }
 
     // Check for Surrogate/1.0 protocol conditions
     // NP: reverse-proxy traffic our parent server has instructed us never to cache
@@ -362,7 +352,7 @@ HttpStateData::cacheableReply()
         }
 
         // NP: request CC:no-cache only means cache READ is forbidden. STORE is permitted.
-        if (rep->cache_control && rep->cache_control->hasNoCache() && rep->cache_control->noCache().defined()) {
+        if (rep->cache_control && rep->cache_control->hasNoCache() && rep->cache_control->noCache().size() > 0) {
             /* TODO: we are allowed to cache when no-cache= has parameters.
              * Provided we strip away any of the listed headers unless they are revalidated
              * successfully (ie, must revalidate AND these headers are prohibited on stale replies).
@@ -427,7 +417,7 @@ HttpStateData::cacheableReply()
             // HTTPbis WG verdict on this is that it is omitted from the spec due to being 'unexpected' by
             // some. The caching+revalidate is not exactly unsafe though with Squids interpretation of no-cache
             // (without parameters) as equivalent to must-revalidate in the reply.
-        } else if (rep->cache_control->hasNoCache() && !rep->cache_control->noCache().defined() && !REFRESH_OVERRIDE(ignore_must_revalidate)) {
+        } else if (rep->cache_control->hasNoCache() && rep->cache_control->noCache().size() == 0 && !REFRESH_OVERRIDE(ignore_must_revalidate)) {
             debugs(22, 3, HERE << "Authenticated but server reply Cache-Control:no-cache (equivalent to must-revalidate)");
             mayStore = true;
 #endif
@@ -458,7 +448,7 @@ HttpStateData::cacheableReply()
         }
 
     switch (rep->sline.status()) {
-        /* Responses that are cacheable */
+    /* Responses that are cacheable */
 
     case Http::scOkay:
 
@@ -485,7 +475,7 @@ HttpStateData::cacheableReply()
         /* NOTREACHED */
         break;
 
-        /* Responses that only are cacheable if the server says so */
+    /* Responses that only are cacheable if the server says so */
 
     case Http::scFound:
     case Http::scTemporaryRedirect:
@@ -503,7 +493,7 @@ HttpStateData::cacheableReply()
         /* NOTREACHED */
         break;
 
-        /* Errors can be negatively cached */
+    /* Errors can be negatively cached */
 
     case Http::scNoContent:
 
@@ -528,15 +518,17 @@ HttpStateData::cacheableReply()
     case Http::scServiceUnavailable:
 
     case Http::scGatewayTimeout:
+    case Http::scMisdirectedRequest:
+
         debugs(22, 3, "MAYBE because HTTP status " << rep->sline.status());
         return -1;
 
         /* NOTREACHED */
         break;
 
-        /* Some responses can never be cached */
+    /* Some responses can never be cached */
 
-    case Http::scPartialContent:	/* Not yet supported */
+    case Http::scPartialContent:    /* Not yet supported */
 
     case Http::scSeeOther:
 
@@ -546,7 +538,7 @@ HttpStateData::cacheableReply()
 
     case Http::scProxyAuthenticationRequired:
 
-    case Http::scInvalidHeader:	/* Squid header parsing error */
+    case Http::scInvalidHeader: /* Squid header parsing error */
 
     case Http::scHeaderTooLarge:
 
@@ -583,9 +575,9 @@ HttpStateData::cacheableReply()
 /*
  * For Vary, store the relevant request headers as
  * virtual headers in the reply
- * Returns false if the variance cannot be stored
+ * Returns an empty SBuf if the variance cannot be stored
  */
-const char *
+SBuf
 httpMakeVaryMark(HttpRequest * request, HttpReply const * reply)
 {
     String vary, hdr;
@@ -593,9 +585,9 @@ httpMakeVaryMark(HttpRequest * request, HttpReply const * reply)
     const char *item;
     const char *value;
     int ilen;
-    static String vstr;
+    SBuf vstr;
+    static const SBuf asterisk("*");
 
-    vstr.clean();
     vary = reply->header.getList(HDR_VARY);
 
     while (strListGetItem(&vary, ',', &item, &ilen, &pos)) {
@@ -606,11 +598,13 @@ httpMakeVaryMark(HttpRequest * request, HttpReply const * reply)
         if (strcmp(name, "*") == 0) {
             /* Can not handle "Vary: *" withtout ETag support */
             safe_free(name);
-            vstr.clean();
+            vstr.clear();
             break;
         }
 
-        strListAdd(&vstr, name, ',');
+        if (!vstr.isEmpty())
+            vstr.append(", ", 2);
+        vstr.append(name);
         hdr = request->header.getByName(name);
         safe_free(name);
         value = hdr.termedBuf();
@@ -635,7 +629,17 @@ httpMakeVaryMark(HttpRequest * request, HttpReply const * reply)
         char *name = (char *)xmalloc(ilen + 1);
         xstrncpy(name, item, ilen + 1);
         Tolower(name);
-        strListAdd(&vstr, name, ',');
+
+        if (strcmp(name, "*") == 0) {
+            /* Can not handle "Vary: *" withtout ETag support */
+            safe_free(name);
+            vstr.clear();
+            break;
+        }
+
+        if (!vstr.isEmpty())
+            vstr.append(", ", 2);
+        vstr.append(name);
         hdr = request->header.getByName(name);
         safe_free(name);
         value = hdr.termedBuf();
@@ -653,8 +657,8 @@ httpMakeVaryMark(HttpRequest * request, HttpReply const * reply)
     vary.clean();
 #endif
 
-    debugs(11, 3, "httpMakeVaryMark: " << vstr);
-    return vstr.termedBuf();
+    debugs(11, 3, vstr);
+    return vstr;
 }
 
 void
@@ -700,7 +704,7 @@ HttpStateData::processReplyHeader()
     /** Creates a blank header. If this routine is made incremental, this will not do */
 
     /* NP: all exit points to this function MUST call ctx_exit(ctx) */
-    Ctx ctx = ctx_enter(entry->mem_obj->url);
+    Ctx ctx = ctx_enter(entry->mem_obj->urlXXX());
 
     debugs(11, 3, "processReplyHeader: key '" << entry->getMD5Text() << "'");
 
@@ -729,11 +733,8 @@ HttpStateData::processReplyHeader()
         if (!parsed && error > 0) { // unrecoverable parsing error
             debugs(11, 3, "processReplyHeader: Non-HTTP-compliant header: '" <<  readBuf->content() << "'");
             flags.headers_parsed = true;
-            // XXX: when sanityCheck is gone and Http::StatusLine is used to parse,
-            //   the sline should be already set the appropriate values during that parser stage
             newrep->sline.set(Http::ProtocolVersion(1,1), error);
-            HttpReply *vrep = setVirginReply(newrep);
-            entry->replaceHttpReply(vrep);
+            setVirginReply(newrep);
             ctx_exit(ctx);
             return;
         }
@@ -908,9 +909,9 @@ bool HttpStateData::peerSupportsConnectionPinning() const
 void
 HttpStateData::haveParsedReplyHeaders()
 {
-    ServerStateData::haveParsedReplyHeaders();
+    Client::haveParsedReplyHeaders();
 
-    Ctx ctx = ctx_enter(entry->mem_obj->url);
+    Ctx ctx = ctx_enter(entry->mem_obj->urlXXX());
     HttpReply *rep = finalReply();
 
     entry->timestampsSet();
@@ -921,58 +922,57 @@ HttpStateData::haveParsedReplyHeaders()
     if (neighbors_do_private_keys)
         httpMaybeRemovePublic(entry, rep->sline.status());
 
+    bool varyFailure = false;
     if (rep->header.has(HDR_VARY)
 #if X_ACCELERATOR_VARY
             || rep->header.has(HDR_X_ACCELERATOR_VARY)
 #endif
        ) {
-        const char *vary = httpMakeVaryMark(request, rep);
+        const SBuf vary(httpMakeVaryMark(request, rep));
 
-        if (!vary) {
+        if (vary.isEmpty()) {
             entry->makePrivate();
             if (!fwd->reforwardableStatus(rep->sline.status()))
                 EBIT_CLR(entry->flags, ENTRY_FWD_HDR_WAIT);
-            goto no_cache;
+            varyFailure = true;
+        } else {
+            entry->mem_obj->vary_headers = vary;
         }
-
-        entry->mem_obj->vary_headers = xstrdup(vary);
     }
 
-    /*
-     * If its not a reply that we will re-forward, then
-     * allow the client to get it.
-     */
-    if (!fwd->reforwardableStatus(rep->sline.status()))
-        EBIT_CLR(entry->flags, ENTRY_FWD_HDR_WAIT);
+    if (!varyFailure) {
+        /*
+         * If its not a reply that we will re-forward, then
+         * allow the client to get it.
+         */
+        if (!fwd->reforwardableStatus(rep->sline.status()))
+            EBIT_CLR(entry->flags, ENTRY_FWD_HDR_WAIT);
 
-    switch (cacheableReply()) {
+        switch (cacheableReply()) {
 
-    case 1:
-        entry->makePublic();
-        break;
+        case 1:
+            entry->makePublic();
+            break;
 
-    case 0:
-        entry->makePrivate();
-        break;
+        case 0:
+            entry->makePrivate();
+            break;
 
-    case -1:
+        case -1:
 
 #if USE_HTTP_VIOLATIONS
-        if (Config.negativeTtl > 0)
-            entry->cacheNegatively();
-        else
+            if (Config.negativeTtl > 0)
+                entry->cacheNegatively();
+            else
 #endif
-            entry->makePrivate();
+                entry->makePrivate();
+            break;
 
-        break;
-
-    default:
-        assert(0);
-
-        break;
+        default:
+            assert(0);
+            break;
+        }
     }
-
-no_cache:
 
     if (!ignoreCacheControl) {
         if (rep->cache_control) {
@@ -983,7 +983,7 @@ no_cache:
             const bool ccMustRevalidate = (rep->cache_control->proxyRevalidate() || rep->cache_control->mustRevalidate());
 
             // CC:no-cache (only if there are no parameters)
-            const bool ccNoCacheNoParams = (rep->cache_control->hasNoCache() && rep->cache_control->noCache().undefined());
+            const bool ccNoCacheNoParams = (rep->cache_control->hasNoCache() && rep->cache_control->noCache().size()==0);
 
             // CC:s-maxage=N
             const bool ccSMaxAge = rep->cache_control->hasSMaxAge();
@@ -1037,7 +1037,7 @@ HttpStateData::statusIfComplete() const
      * connection.
      */
     if (!flags.request_sent) {
-        debugs(11, 2, "statusIfComplete: Request not yet fully sent \"" << RequestMethodStr(request->method) << " " << entry->url() << "\"" );
+        debugs(11, 2, "Request not yet fully sent " << request->method << ' ' << entry->url());
         return COMPLETE_NONPERSISTENT_MSG;
     }
 
@@ -1118,7 +1118,7 @@ HttpStateData::persistentConnStatus() const
  */
 /*
 void
-HttpStateData::ReadReplyWrapper(int fd, char *buf, size_t len, comm_err_t flag, int xerrno, void *data)
+HttpStateData::ReadReplyWrapper(int fd, char *buf, size_t len, Comm::Flag flag, int xerrno, void *data)
 {
     HttpStateData *httpState = static_cast<HttpStateData *>(data);
     assert (fd == httpState->serverConnection->fd);
@@ -1141,8 +1141,8 @@ HttpStateData::readReply(const CommIoCbParams &io)
 
     debugs(11, 5, HERE << io.conn << ": len " << len << ".");
 
-    // Bail out early on COMM_ERR_CLOSING - close handlers will tidy up for us
-    if (io.flag == COMM_ERR_CLOSING) {
+    // Bail out early on Comm::ERR_CLOSING - close handlers will tidy up for us
+    if (io.flag == Comm::ERR_CLOSING) {
         debugs(11, 3, "http socket closing");
         return;
     }
@@ -1153,7 +1153,7 @@ HttpStateData::readReply(const CommIoCbParams &io)
     }
 
     // handle I/O errors
-    if (io.flag != COMM_OK || len < 0) {
+    if (io.flag != Comm::OK || len < 0) {
         debugs(11, 2, HERE << io.conn << ": read failure: " << xstrerror() << ".");
 
         if (ignoreErrno(io.xerrno)) {
@@ -1163,7 +1163,8 @@ HttpStateData::readReply(const CommIoCbParams &io)
             err->xerrno = io.xerrno;
             fwd->fail(err);
             flags.do_next_read = false;
-            serverConnection->close();
+            closeServer();
+            mustStop("HttpStateData::readReply");
         }
 
         return;
@@ -1292,6 +1293,9 @@ HttpStateData::continueAfterParsingHeader()
             } else if (s == Http::scHeaderTooLarge) {
                 fwd->dontRetry(true);
                 error = ERR_TOO_BIG;
+            } else if (vrep->header.conflictingContentLength()) {
+                fwd->dontRetry(true);
+                error = ERR_INVALID_RESP;
             } else {
                 return true; // done parsing, got reply, and no error
             }
@@ -1316,7 +1320,8 @@ HttpStateData::continueAfterParsingHeader()
     entry->reset();
     fwd->fail(new ErrorState(error, Http::scBadGateway, fwd->request));
     flags.do_next_read = false;
-    serverConnection->close();
+    closeServer();
+    mustStop("HttpStateData::continueAfterParsingHeader");
     return false; // quit on error
 }
 
@@ -1485,6 +1490,15 @@ HttpStateData::processReplyBody()
     maybeReadVirginBody();
 }
 
+bool
+HttpStateData::mayReadVirginReplyBody() const
+{
+    // TODO: Be more precise here. For example, if/when reading trailer, we may
+    // not be doneWithServer() yet, but we should return false. Similarly, we
+    // could still be writing the request body after receiving the whole reply.
+    return !doneWithServer();
+}
+
 void
 HttpStateData::maybeReadVirginBody()
 {
@@ -1534,14 +1548,15 @@ HttpStateData::wroteLast(const CommIoCbParams &io)
         kb_incr(&(statCounter.server.http.kbytes_out), io.size);
     }
 
-    if (io.flag == COMM_ERR_CLOSING)
+    if (io.flag == Comm::ERR_CLOSING)
         return;
 
     if (io.flag) {
         ErrorState *err = new ErrorState(ERR_WRITE_ERROR, Http::scBadGateway, fwd->request);
         err->xerrno = io.xerrno;
         fwd->fail(err);
-        serverConnection->close();
+        closeServer();
+        mustStop("HttpStateData::wroteLast");
         return;
     }
 
@@ -1555,7 +1570,7 @@ HttpStateData::sendComplete()
     /*
      * Set the read timeout here because it hasn't been set yet.
      * We only set the read timeout after the request has been
-     * fully written to the server-side.  If we start the timeout
+     * fully written to the peer.  If we start the timeout
      * after connection establishment, then we are likely to hit
      * the timeout for POST/PUT requests that have very large
      * request bodies.
@@ -1569,7 +1584,6 @@ HttpStateData::sendComplete()
     request->hier.peer_http_request_sent = current_time;
 }
 
-// Close the HTTP server connection. Used by serverComplete().
 void
 HttpStateData::closeServer()
 {
@@ -1706,7 +1720,7 @@ HttpStateData::httpBuildRequestHeader(HttpRequest * request,
 
     // Add our own If-None-Match field if the cached entry has a strong ETag.
     // copyOneHeaderFromClientsideRequestToUpstreamRequest() adds client ones.
-    if (request->etag.defined()) {
+    if (request->etag.size() > 0) {
         hdr_out->addEntry(new HttpHeaderEntry(HDR_IF_NONE_MATCH, NULL,
                                               request->etag.termedBuf()));
     }
@@ -1758,7 +1772,8 @@ HttpStateData::httpBuildRequestHeader(HttpRequest * request,
 
         String strFwd = hdr_in->getList(HDR_X_FORWARDED_FOR);
 
-        if (strFwd.size() > 65536/2) {
+        // if we cannot double strFwd size, then it grew past 50% of the limit
+        if (!strFwd.canGrowBy(strFwd.size())) {
             // There is probably a forwarding loop with Via detection disabled.
             // If we do nothing, String will assert on overflow soon.
             // TODO: Terminate all transactions with huge XFF?
@@ -1798,7 +1813,7 @@ HttpStateData::httpBuildRequestHeader(HttpRequest * request,
     if (!hdr_out->has(HDR_HOST)) {
         if (request->peer_domain) {
             hdr_out->putStr(HDR_HOST, request->peer_domain);
-        } else if (request->port == urlDefaultPort(request->protocol)) {
+        } else if (request->port == urlDefaultPort(request->url.getScheme())) {
             /* use port# only if not default */
             hdr_out->putStr(HDR_HOST, request->GetHost());
         } else {
@@ -1856,7 +1871,7 @@ HttpStateData::httpBuildRequestHeader(HttpRequest * request,
 
     /* append Front-End-Https */
     if (flags.front_end_https) {
-        if (flags.front_end_https == 1 || request->protocol == AnyP::PROTO_HTTPS)
+        if (flags.front_end_https == 1 || request->url.getScheme() == AnyP::PROTO_HTTPS)
             hdr_out->putStr(HDR_FRONT_END_HTTPS, "On");
     }
 
@@ -1887,7 +1902,7 @@ copyOneHeaderFromClientsideRequestToUpstreamRequest(const HttpHeaderEntry *e, co
 
     switch (e->id) {
 
-        /** \par RFC 2616 sect 13.5.1 - Hop-by-Hop headers which Squid should not pass on. */
+    /** \par RFC 2616 sect 13.5.1 - Hop-by-Hop headers which Squid should not pass on. */
 
     case HDR_PROXY_AUTHORIZATION:
         /** \par Proxy-Authorization:
@@ -1902,7 +1917,7 @@ copyOneHeaderFromClientsideRequestToUpstreamRequest(const HttpHeaderEntry *e, co
         }
         break;
 
-        /** \par RFC 2616 sect 13.5.1 - Hop-by-Hop headers which Squid does not pass on. */
+    /** \par RFC 2616 sect 13.5.1 - Hop-by-Hop headers which Squid does not pass on. */
 
     case HDR_CONNECTION:          /** \par Connection: */
     case HDR_TE:                  /** \par TE: */
@@ -1913,7 +1928,7 @@ copyOneHeaderFromClientsideRequestToUpstreamRequest(const HttpHeaderEntry *e, co
     case HDR_TRANSFER_ENCODING:   /** \par Transfer-Encoding: */
         break;
 
-        /** \par OTHER headers I haven't bothered to track down yet. */
+    /** \par OTHER headers I haven't bothered to track down yet. */
 
     case HDR_AUTHORIZATION:
         /** \par WWW-Authorization:
@@ -1949,7 +1964,7 @@ copyOneHeaderFromClientsideRequestToUpstreamRequest(const HttpHeaderEntry *e, co
         else {
             /* use port# only if not default */
 
-            if (request->port == urlDefaultPort(request->protocol)) {
+            if (request->port == urlDefaultPort(request->url.getScheme())) {
                 hdr_out->putStr(HDR_HOST, request->GetHost());
             } else {
                 httpHeaderPutStrf(hdr_out, HDR_HOST, "%s:%d",
@@ -2108,8 +2123,8 @@ HttpStateData::buildRequestPrefix(MemBuf * mb)
         url = urlCanonical(request);
     else
         url = request->urlpath.termedBuf();
-    mb->Printf("%s %s %s/%d.%d\r\n",
-               RequestMethodStr(request->method),
+    mb->Printf(SQUIDSBUFPH " %s %s/%d.%d\r\n",
+               SQUIDSBUFPRINT(request->method.image()),
                url && *url ? url : "/",
                AnyP::ProtocolType_str[httpver.protocol],
                httpver.major,httpver.minor);
@@ -2228,7 +2243,7 @@ HttpStateData::getMoreRequestBody(MemBuf &buf)
 {
     // parent's implementation can handle the no-encoding case
     if (!flags.chunked_request)
-        return ServerStateData::getMoreRequestBody(buf);
+        return Client::getMoreRequestBody(buf);
 
     MemBuf raw;
 
@@ -2260,7 +2275,7 @@ HttpStateData::getMoreRequestBody(MemBuf &buf)
 void
 httpStart(FwdState *fwd)
 {
-    debugs(11, 3, "httpStart: \"" << RequestMethodStr(fwd->request->method) << " " << fwd->entry->url() << "\"" );
+    debugs(11, 3, fwd->request->method << ' ' << fwd->entry->url());
     AsyncJob::Start(new HttpStateData(fwd));
 }
 
@@ -2337,7 +2352,7 @@ HttpStateData::finishingChunkedRequest()
 void
 HttpStateData::doneSendingRequestBody()
 {
-    ServerStateData::doneSendingRequestBody();
+    Client::doneSendingRequestBody();
     debugs(11,5, HERE << serverConnection);
 
     // do we need to write something after the last body byte?
@@ -2371,7 +2386,8 @@ HttpStateData::handleMoreRequestBodyAvailable()
             debugs(11, DBG_IMPORTANT, "http handleMoreRequestBodyAvailable: Likely proxy abuse detected '" << request->client_addr << "' -> '" << entry->url() << "'" );
 
             if (virginReply()->sline.status() == Http::scInvalidHeader) {
-                serverConnection->close();
+                closeServer();
+                mustStop("HttpStateData::handleMoreRequestBodyAvailable");
                 return;
             }
         }
@@ -2384,7 +2400,7 @@ HttpStateData::handleMoreRequestBodyAvailable()
 void
 HttpStateData::handleRequestBodyProducerAborted()
 {
-    ServerStateData::handleRequestBodyProducerAborted();
+    Client::handleRequestBodyProducerAborted();
     if (entry->isEmpty()) {
         debugs(11, 3, "request body aborted: " << serverConnection);
         // We usually get here when ICAP REQMOD aborts during body processing.
@@ -2406,23 +2422,14 @@ HttpStateData::sentRequestBody(const CommIoCbParams &io)
     if (io.size > 0)
         kb_incr(&statCounter.server.http.kbytes_out, io.size);
 
-    ServerStateData::sentRequestBody(io);
+    Client::sentRequestBody(io);
 }
 
-// Quickly abort the transaction
-// TODO: destruction should be sufficient as the destructor should cleanup,
-// including canceling close handlers
 void
-HttpStateData::abortTransaction(const char *reason)
+HttpStateData::abortAll(const char *reason)
 {
     debugs(11,5, HERE << "aborting transaction for " << reason <<
            "; " << serverConnection << ", this " << this);
-
-    if (Comm::IsConnOpen(serverConnection)) {
-        serverConnection->close();
-        return;
-    }
-
-    fwd->handleUnregisteredServerEnd();
-    mustStop("HttpStateData::abortTransaction");
+    mustStop(reason);
 }
+

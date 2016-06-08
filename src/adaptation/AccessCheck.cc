@@ -1,4 +1,13 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
+#include "AccessLogEntry.h"
 #include "acl/FilledChecklist.h"
 #include "adaptation/AccessCheck.h"
 #include "adaptation/AccessRule.h"
@@ -13,19 +22,20 @@
 #include "HttpReply.h"
 #include "HttpRequest.h"
 
-/** \cond AUTODOCS-IGNORE */
+/** \cond AUTODOCS_IGNORE */
 cbdata_type Adaptation::AccessCheck::CBDATA_AccessCheck = CBDATA_UNKNOWN;
 /** \endcond */
 
 bool
 Adaptation::AccessCheck::Start(Method method, VectPoint vp,
-                               HttpRequest *req, HttpReply *rep, Adaptation::Initiator *initiator)
+                               HttpRequest *req, HttpReply *rep,
+                               AccessLogEntry::Pointer &al, Adaptation::Initiator *initiator)
 {
 
     if (Config::Enabled) {
         // the new check will call the callback and delete self, eventually
         AsyncJob::Start(new AccessCheck( // we do not store so not a CbcPointer
-                            ServiceFilter(method, vp, req, rep), initiator));
+                            ServiceFilter(method, vp, req, rep, al), initiator));
         return true;
     }
 
@@ -35,9 +45,9 @@ Adaptation::AccessCheck::Start(Method method, VectPoint vp,
 
 Adaptation::AccessCheck::AccessCheck(const ServiceFilter &aFilter,
                                      Adaptation::Initiator *initiator):
-        AsyncJob("AccessCheck"), filter(aFilter),
-        theInitiator(initiator),
-        acl_checklist(NULL)
+    AsyncJob("AccessCheck"), filter(aFilter),
+    theInitiator(initiator),
+    acl_checklist(NULL)
 {
 #if ICAP_CLIENT
     Adaptation::Icap::History::Pointer h = filter.request->icapHistory();
@@ -100,7 +110,7 @@ Adaptation::AccessCheck::check()
         AccessRule *r = *i;
         if (isCandidate(*r)) {
             debugs(93, 5, HERE << "check: rule '" << r->id << "' is a candidate");
-            candidates += r->id;
+            candidates.push_back(r->id);
         }
     }
 
@@ -124,11 +134,12 @@ Adaptation::AccessCheck::checkCandidates()
             acl_checklist = new ACLFilledChecklist(r->acl, filter.request, dash_str);
             if ((acl_checklist->reply = filter.reply))
                 HTTPMSGLOCK(acl_checklist->reply);
+            acl_checklist->al = filter.al;
             acl_checklist->nonBlockingCheck(AccessCheckCallbackWrapper, this);
             return;
         }
 
-        candidates.shift(); // the rule apparently went away (reconfigure)
+        candidates.erase(candidates.begin()); // the rule apparently went away (reconfigure)
     }
 
     debugs(93, 4, HERE << "NO candidates left");
@@ -173,7 +184,7 @@ Adaptation::AccessCheck::noteAnswer(allow_t answer)
     }
 
     // no match or the group disappeared during reconfiguration
-    candidates.shift();
+    candidates.erase(candidates.begin());
     checkCandidates();
 }
 
@@ -225,3 +236,4 @@ Adaptation::AccessCheck::isCandidate(AccessRule &r)
     debugs(93,7,HERE << r.groupId << (wants ? " wants" : " ignores"));
     return wants;
 }
+

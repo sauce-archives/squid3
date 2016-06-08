@@ -1,21 +1,26 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 
 #include "acl/Gadgets.h"
 #include "cache_cf.h"
 #include "comm/Connection.h"
+#include "compat/cmsg.h"
 #include "ConfigParser.h"
 #include "fde.h"
 #include "globals.h"
 #include "hier_code.h"
-#include "ip/tools.h"
 #include "ip/QosConfig.h"
+#include "ip/tools.h"
 #include "Parsing.h"
 
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
-
-/* Qos namespace */
+#include <cerrno>
 
 void
 Ip::Qos::getTosFromServer(const Comm::ConnectionPointer &server, fde *clientFde)
@@ -40,7 +45,7 @@ Ip::Qos::getTosFromServer(const Comm::ConnectionPointer &server, fde *clientFde)
                     break;
 
                 if (o->cmsg_level == SOL_IP && o->cmsg_type == IP_TOS) {
-                    int *tmp = (int*)CMSG_DATA(o);
+                    int *tmp = (int*)SQUID_CMSG_DATA(o);
                     clientFde->tosFromServer = (tos_t)*tmp;
                     break;
                 }
@@ -185,12 +190,12 @@ Ip::Qos::doNfmarkLocalHit(const Comm::ConnectionPointer &conn)
 Ip::Qos::Config Ip::Qos::TheConfig;
 
 Ip::Qos::Config::Config() : tosLocalHit(0), tosSiblingHit(0), tosParentHit(0),
-        tosMiss(0), tosMissMask(0), preserveMissTos(false),
-        preserveMissTosMask(0xFF), markLocalHit(0), markSiblingHit(0),
-        markParentHit(0), markMiss(0), markMissMask(0),
-        preserveMissMark(false), preserveMissMarkMask(0xFFFFFFFF),
-        tosToServer(NULL), tosToClient(NULL), nfmarkToServer(NULL),
-        nfmarkToClient(NULL)
+    tosMiss(0), tosMissMask(0), preserveMissTos(false),
+    preserveMissTosMask(0xFF), markLocalHit(0), markSiblingHit(0),
+    markParentHit(0), markMiss(0), markMissMask(0),
+    preserveMissMark(false), preserveMissMarkMask(0xFFFFFFFF),
+    tosToServer(NULL), tosToClient(NULL), nfmarkToServer(NULL),
+    nfmarkToClient(NULL)
 {
 }
 
@@ -209,7 +214,7 @@ Ip::Qos::Config::parseConfigLine()
     self_destruct();
 #endif
 
-    while ( (token = strtok(NULL, w_space)) ) {
+    while ( (token = ConfigParser::NextToken()) ) {
 
         // Work out TOS or mark. Default to TOS for backwards compatibility
         if (!(mark || tos)) {
@@ -387,7 +392,7 @@ Ip::Qos::Config::dumpConfigLine(char *entry, const char *name) const
         if (tosMiss > 0) {
             p += snprintf(p, 11, " miss=0x%02X", tosMiss);
             if (tosMissMask!=0xFFU) {
-                p += snprintf(p, 6, "/0x%02X", markMissMask);
+                p += snprintf(p, 6, "/0x%02X", tosMissMask);
             }
         }
         if (preserveMissTos == 0) {
@@ -431,3 +436,4 @@ Ip::Qos::Config::dumpConfigLine(char *entry, const char *name) const
 #if !_USE_INLINE_
 #include "Qos.cci"
 #endif
+

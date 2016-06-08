@@ -1,47 +1,33 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_SQUIDCONFIG_H_
 #define SQUID_SQUIDCONFIG_H_
-/*
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- */
 
 #include "acl/forward.h"
 #include "base/RefCount.h"
 #include "ClientDelayConfig.h"
 #include "DelayConfig.h"
-#include "HelperChildConfig.h"
+#include "helper/ChildConfig.h"
 #include "HttpHeaderTools.h"
 #include "icmp/IcmpConfig.h"
 #include "ip/Address.h"
 #include "Notes.h"
+#if USE_OPENSSL
+#include "ssl/support.h"
+#endif
 #include "YesNoNone.h"
 
-#if USE_SSL
+#if USE_OPENSSL
+#if HAVE_OPENSSL_SSL_H
 #include <openssl/ssl.h>
+#endif
+
 class sslproxy_cert_sign;
 class sslproxy_cert_adapt;
 #endif
@@ -105,22 +91,18 @@ public:
         time_t request;
         time_t clientIdlePconn;
         time_t serverIdlePconn;
+        time_t ftpClientIdle;
         time_t siteSelect;
         time_t deadPeer;
         int icp_query;      /* msec */
         int icp_query_max;  /* msec */
         int icp_query_min;  /* msec */
         int mcast_icp_query;    /* msec */
-
-#if !USE_DNSHELPER
         time_msec_t idns_retransmit;
         time_msec_t idns_query;
-#endif
-
     } Timeout;
     size_t maxRequestHeaderSize;
     int64_t maxRequestBodySize;
-    int64_t maxChunkedRequestBodySize;
     size_t maxRequestBufferSize;
     size_t maxReplyHeaderSize;
     AclSizeLimit *ReplyBodySize;
@@ -137,12 +119,6 @@ public:
 #endif
     } Port;
 
-    struct {
-        AnyP::PortCfg *http;
-#if USE_SSL
-        AnyP::PortCfg *https;
-#endif
-    } Sockaddr;
 #if SQUID_SNMP
 
     struct {
@@ -195,10 +171,6 @@ public:
     char *effectiveGroup;
 
     struct {
-#if USE_DNSHELPER
-        char *dnsserver;
-#endif
-
         wordlist *redirect;
         wordlist *store_id;
 #if USE_UNLINKD
@@ -207,18 +179,15 @@ public:
 #endif
 
         char *diskd;
-#if USE_SSL
+#if USE_OPENSSL
 
         char *ssl_password;
 #endif
 
     } Program;
-#if USE_DNSHELPER
-    HelperChildConfig dnsChildren;
-#endif
 
-    HelperChildConfig redirectChildren;
-    HelperChildConfig storeIdChildren;
+    Helper::ChildConfig redirectChildren;
+    Helper::ChildConfig storeIdChildren;
     time_t authenticateGCInterval;
     time_t authenticateTTL;
     time_t authenticateIpTTL;
@@ -257,7 +226,6 @@ public:
     } Addrs;
     size_t tcpRcvBufsz;
     size_t udpMaxHitObjsz;
-    wordlist *hierarchy_stoplist;
     wordlist *mcast_group_list;
     wordlist *dns_nameservers;
     CachePeer *peers;
@@ -341,6 +309,7 @@ public:
         int emailErrData;
         int httpd_suppress_version_string;
         int global_internal_static;
+        int collapsed_forwarding;
 
 #if FOLLOW_X_FORWARDED_FOR
         int acl_uses_indirect_client;
@@ -375,6 +344,8 @@ public:
         acl_access *AlwaysDirect;
         acl_access *ASlists;
         acl_access *noCache;
+        acl_access *sendHit;
+        acl_access *storeMiss;
         acl_access *stats_collection;
 #if SQUID_SNMP
 
@@ -393,16 +364,21 @@ public:
         acl_access *htcp_clr;
 #endif
 
-#if USE_SSL
+#if USE_OPENSSL
         acl_access *ssl_bump;
 #endif
 #if FOLLOW_X_FORWARDED_FOR
         acl_access *followXFF;
 #endif /* FOLLOW_X_FORWARDED_FOR */
 
+        /// acceptible PROXY protocol clients
+        acl_access *proxyProtocol;
+
         /// spoof_client_ip squid.conf acl.
         /// nil unless configured
         acl_access* spoof_client_ip;
+
+        acl_access *ftp_epsv;
     } accessList;
     AclDenyInfoList *denyInfoList;
 
@@ -495,11 +471,14 @@ public:
         int rebuild_chunk_percentage;
     } digest;
 #endif
-#if USE_SSL
+#if USE_OPENSSL
 
     struct {
         int unclean_shutdown;
         char *ssl_engine;
+        int session_ttl;
+        size_t sessionCacheSize;
+        char *certSignHash;
     } SSL;
 #endif
 
@@ -515,18 +494,20 @@ public:
     time_t minimum_expiry_time; /* seconds */
     external_acl *externalAclHelperList;
 
-#if USE_SSL
+#if USE_OPENSSL
 
     struct {
         char *cert;
         char *key;
         int version;
         char *options;
+        long parsedOptions;
         char *cipher;
         char *cafile;
         char *capath;
         char *crlfile;
         char *flags;
+        char *foreignIntermediateCertsPath;
         acl_access *cert_error;
         SSL_CTX *sslContext;
         sslproxy_cert_sign *cert_sign;
@@ -545,6 +526,10 @@ public:
 #endif
 
     int client_ip_max_connections;
+
+    char *redirector_extras;
+
+    char *storeId_extras;
 
     struct {
         int v4_first;       ///< Place IPv4 first in the order of DNS results.
@@ -569,3 +554,4 @@ public:
 extern SquidConfig2 Config2;
 
 #endif /* SQUID_SQUIDCONFIG_H_ */
+

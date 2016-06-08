@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>VIGA: P&auml;ring URLile ei saa vastust</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Invalid Response</b> error was encountered while trying to process the request:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>Vasti võetud HTTP vastus on tundmatu või muidu katki. Palun kontakteeruge saidi operaatoriga.</p>
@@ -33,7 +34,7 @@ body
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Generated %T by %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

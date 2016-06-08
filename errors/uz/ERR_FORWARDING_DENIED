@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ХАТО: Сўралган URL топилмади.</title>
 <style type="text/css"><!-- 
@@ -17,15 +18,15 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>The following error was encountered while trying to retrieve the URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
 <p><b>Узатиш рад қилинди.</b></p>
 </blockquote>
 
-<p></p>
+<p>This cache will not forward your request because it is trying to enforce a sibling relationship. Perhaps the client at %i is a cache which has been misconfigured.</p>
 
-<p></p>
+<p>Your cache administrator is <a href="mailto:%w%W">%w</a>.</p>
 
 <br>
 </div>

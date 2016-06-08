@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: De gevraagde URL kon niet worden opgehaald</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Onverwachte reactie</b> er is een fout opgetreden tijdens het uitvoeren van opdracht:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>Het ontvangen HTTP bericht is niet begrepen of beschadigd. Neem contact op met de beheerder van de website die u probeert te bereiken.</p>

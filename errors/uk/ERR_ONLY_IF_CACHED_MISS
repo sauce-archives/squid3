@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ПОМИЛКА: Запитаний URL не може бути отриманий</title>
 <style type="text/css"><!-- 
@@ -20,10 +21,10 @@ body
 <p>При отриманні URL: <a href="%U">%U</a> виникла помилка.</p>
 
 <blockquote id="error">
-<p><b>Valid document was not found in the cache and <q>only-if-cached</q> directive was specified.</b></p>
+<p><b>Необхідний документ не знайдений в кеші і визначена директива <q>"тільки в кеші"</q></b></p>
 </blockquote>
 
-<p>You have issued a request with a <q>only-if-cached</q> cache control directive. The document was not found in the cache, <em>or</em> it required revalidation prohibited by the <q>only-if-cached</q> directive.</p>
+<p>Ви надіслали запит з директивою керування кешу <q>"тільки в кеші"</q>. Документ не знайдений в кеші, <em>або</em> він потребує оновлення, що заборонено директивою <q>"тільки в кеші"</q>.</p>
 
 <p>Адміністратор даного кешу <a href="mailto:%w%W">%w</a>.</p>
 <br>

@@ -1,42 +1,20 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- * Copyright (c) 2003, Robert Collins <robertc@squid-cache.org>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #ifndef SQUID_ESICONTEXT_H
 #define SQUID_ESICONTEXT_H
 
-#include "esi/Parser.h"
-#include "esi/Element.h"
 #include "clientStream.h"
 #include "err_type.h"
+#include "esi/Element.h"
+#include "esi/Parser.h"
 #include "http/StatusCode.h"
+#include "HttpReply.h"
 
 class ESIVarState;
 class ClientHttpRequest;
@@ -49,19 +27,19 @@ class ESIContext : public esiTreeParent, public ESIParserClient
 public:
     typedef RefCount<ESIContext> Pointer;
     ESIContext() :
-            thisNode(NULL),
-            http(NULL),
-            errorpage(ERR_NONE),
-            errorstatus(Http::scNone),
-            errormessage(NULL),
-            rep(NULL),
-            outbound_offset(0),
-            readpos(0),
-            pos(0),
-            varState(NULL),
-            cachedASTInUse(false),
-            reading_(true),
-            processing(false) {
+        thisNode(NULL),
+        http(NULL),
+        errorpage(ERR_NONE),
+        errorstatus(Http::scNone),
+        errormessage(NULL),
+        rep(NULL),
+        outbound_offset(0),
+        readpos(0),
+        pos(0),
+        varState(NULL),
+        cachedASTInUse(false),
+        reading_(true),
+        processing(false) {
         memset(&flags, 0, sizeof(flags));
     }
 
@@ -114,7 +92,7 @@ public:
     err_type errorpage; /* if we error what page to use */
     Http::StatusCode errorstatus; /* if we error, what code to return */
     char *errormessage; /* error to pass to error page */
-    HttpReply *rep; /* buffered until we pass data downstream */
+    HttpReply::Pointer rep; /* buffered until we pass data downstream */
     ESISegment::Pointer buffered; /* unprocessed data - for whatever reason */
     ESISegment::Pointer incoming;
     /* processed data we are waiting to send, or for
@@ -183,3 +161,4 @@ private:
 };
 
 #endif /* SQUID_ESICONTEXT_H */
+

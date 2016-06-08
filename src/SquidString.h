@@ -1,81 +1,23 @@
 /*
- * DEBUG: section 67    String
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 67    String */
 
 #ifndef SQUID_STRING_H
 #define SQUID_STRING_H
 
-#if HAVE_OSTREAM
 #include <ostream>
-#endif
 
 /* squid string placeholder (for printf) */
 #ifndef SQUIDSTRINGPH
 #define SQUIDSTRINGPH "%.*s"
 #define SQUIDSTRINGPRINT(s) (s).psize(),(s).rawBuf()
 #endif /* SQUIDSTRINGPH */
-
-#define DEBUGSTRINGS 0
-#if DEBUGSTRINGS
-#include "splay.h"
-
-class String;
-
-class StringRegistry
-{
-
-public:
-    static StringRegistry &Instance();
-
-    void add(String const *);
-
-    StringRegistry();
-
-    void remove(String const *);
-
-private:
-    static OBJH Stat;
-
-    static StringRegistry Instance_;
-
-    static SplayNode<String const *>::SPLAYWALKEE Stater;
-
-    Splay<String const *> entries;
-
-    bool registered;
-
-};
-
-class StoreEntry;
-#endif
 
 class String
 {
@@ -96,7 +38,7 @@ public:
 
     /**
      * Retrieve a single character in the string.
-     \param pos	Position of character to retrieve.
+     \param pos Position of character to retrieve.
      */
     _SQUID_INLINE_ char operator [](unsigned int pos) const;
 
@@ -105,14 +47,6 @@ public:
     /// throws when size() > MAXINT
     int psize() const;
 
-    /**
-     * \retval true the String has some contents
-     */
-    _SQUID_INLINE_ bool defined() const;
-    /**
-     * \retval true the String does not hold any contents
-     */
-    _SQUID_INLINE_ bool undefined() const;
     /**
      * Returns a raw pointer to the underlying backing store. The caller has been
      * verified not to make any assumptions about null-termination
@@ -146,25 +80,35 @@ public:
     _SQUID_INLINE_ int caseCmp(char const *, size_type count) const;
     _SQUID_INLINE_ int caseCmp(String const &) const;
 
+    /// Whether creating a totalLen-character string is safe (i.e., unlikely to assert).
+    /// Optional extras can be used for overflow-safe length addition.
+    /// Implementation has to add 1 because many String allocation methods do.
+    static bool CanGrowTo(size_type totalLen, const size_type extras = 0) { return SafeAdd(totalLen, extras) && SafeAdd(totalLen, 1); }
+    /// whether appending growthLen characters is safe (i.e., unlikely to assert)
+    bool canGrowBy(const size_type growthLen) const { return CanGrowTo(size(), growthLen); }
+
     String substr(size_type from, size_type to) const;
 
     _SQUID_INLINE_ void cut(size_type newLength);
-
-#if DEBUGSTRINGS
-    void stat(StoreEntry *) const;
-#endif
 
 private:
     void allocAndFill(const char *str, int len);
     void allocBuffer(size_type sz);
     void setBuffer(char *buf, size_type sz);
 
+    bool defined() const {return buf_!=NULL;}
+    bool undefined() const {return !defined();}
+
     _SQUID_INLINE_ bool nilCmp(bool, bool, int &) const;
 
     /* never reference these directly! */
-    size_type size_; /* buffer size; 64K limit */
+    size_type size_; /* buffer size; limited by SizeMax_ */
 
     size_type len_;  /* current length  */
+
+    static const size_type SizeMax_ = 65535; ///< 64K limit protects some fixed-size buffers
+    /// returns true after increasing the first argument by extra if the sum does not exceed SizeMax_
+    static bool SafeAdd(size_type &base, size_type extra) { if (extra <= SizeMax_ && base <= SizeMax_ - extra) { base += extra; return true; } return false; }
 
     char *buf_;
 
@@ -187,3 +131,4 @@ int stringHasCntl(const char *);
 char *strwordtok(char *buf, char **t);
 
 #endif /* SQUID_STRING_H */
+

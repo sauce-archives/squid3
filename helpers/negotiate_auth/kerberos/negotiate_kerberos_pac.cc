@@ -1,4 +1,12 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * -----------------------------------------------------------------------------
  *
  * Author: Markus Moeller (markus_moeller at compuserve.com)
@@ -29,30 +37,17 @@
 
 #include "squid.h"
 #include "rfc1738.h"
-#include "compat/getaddrinfo.h"
-#include "compat/getnameinfo.h"
 
 #include "negotiate_kerberos.h"
 
-#if HAVE_PAC_SUPPORT
+#if HAVE_GSSAPI && HAVE_PAC_SUPPORT
 
 static int bpos;
 static krb5_data *ad_data;
 static unsigned char *p;
 
-int
-check_k5_err(krb5_context context, const char *function, krb5_error_code code)
-{
-    const char *errmsg;
-
-    if (code) {
-        errmsg = krb5_get_error_message(context, code);
-        debug((char *) "%s| %s: ERROR: %s failed: %s\n", LogTime(), PROGRAM, function, errmsg);
-        fprintf(stderr, "%s| %s: ERROR: %s: %s\n", LogTime(), PROGRAM, function, errmsg);
-        krb5_free_error_message(context, errmsg);
-    }
-    return code;
-}
+extern int
+check_k5_err(krb5_context context, const char *function, krb5_error_code code);
 
 void
 align(int n)
@@ -120,7 +115,7 @@ get1byt(void)
 }
 
 char *
-xstrcpy( char *src, const char *dst)
+pstrcpy( char *src, const char *dst)
 {
     if (dst) {
         if (strlen(dst)>MAX_PAC_GROUP_SIZE)
@@ -132,7 +127,7 @@ xstrcpy( char *src, const char *dst)
 }
 
 char *
-xstrcat( char *src, const char *dst)
+pstrcat( char *src, const char *dst)
 {
     if (dst) {
         if (strlen(src)+strlen(dst)+1>MAX_PAC_GROUP_SIZE)
@@ -146,9 +141,9 @@ xstrcat( char *src, const char *dst)
 int
 checkustr(RPC_UNICODE_STRING *string)
 {
-    uint32_t size,off,len;
 
     if (string->pointer != 0) {
+        uint32_t size,off,len;
         align(4);
         size = (uint32_t)((p[bpos]<<0) | (p[bpos+1]<<8) | (p[bpos+2]<<16) | (p[bpos+3]<<24));
         bpos = bpos+4;
@@ -173,7 +168,6 @@ getgids(char **Rids, uint32_t GroupIds, uint32_t  GroupCount)
 {
     if (GroupIds!= 0) {
         uint32_t ngroup;
-        uint32_t sauth;
         int l;
 
         align(4);
@@ -187,6 +181,7 @@ getgids(char **Rids, uint32_t GroupIds, uint32_t  GroupCount)
 
         Rids=(char **)xcalloc(GroupCount*sizeof(char*),1);
         for ( l=0; l<(int)GroupCount; l++) {
+            uint32_t sauth;
             Rids[l]=(char *)xcalloc(4*sizeof(char),1);
             memcpy((void *)Rids[l],(void *)&p[bpos],4);
             sauth = get4byt();
@@ -201,11 +196,16 @@ getgids(char **Rids, uint32_t GroupIds, uint32_t  GroupCount)
 char *
 getdomaingids(char *ad_groups, uint32_t DomainLogonId, char **Rids, uint32_t GroupCount)
 {
+    if (!ad_groups) {
+        debug((char *) "%s| %s: ERR: No space to store groups\n",
+              LogTime(), PROGRAM);
+        return NULL;
+    }
+
     if (DomainLogonId!= 0) {
         uint32_t nauth;
         uint8_t rev;
         uint64_t idauth;
-        uint32_t sauth;
         char dli[256];
         char *ag;
         size_t length;
@@ -225,17 +225,17 @@ getdomaingids(char *ad_groups, uint32_t DomainLogonId, char **Rids, uint32_t Gro
             memcpy((void *)&ag[2],(const void*)&p[bpos+2],6+nauth*4);
             memcpy((void *)&ag[length],(const void*)Rids[l],4);
             if (l==0) {
-                if (!xstrcpy(ad_groups,"group=")) {
+                if (!pstrcpy(ad_groups,"group=")) {
                     debug((char *) "%s| %s: WARN: Too many groups ! size > %d : %s\n",
                           LogTime(), PROGRAM, MAX_PAC_GROUP_SIZE, ad_groups);
                 }
             } else {
-                if (!xstrcat(ad_groups," group=")) {
+                if (!pstrcat(ad_groups," group=")) {
                     debug((char *) "%s| %s: WARN: Too many groups ! size > %d : %s\n",
                           LogTime(), PROGRAM, MAX_PAC_GROUP_SIZE, ad_groups);
                 }
             }
-            if (!xstrcat(ad_groups,base64_encode_bin(ag, (int)(length+4)))) {
+            if (!pstrcat(ad_groups,base64_encode_bin(ag, (int)(length+4)))) {
                 debug((char *) "%s| %s: WARN: Too many groups ! size > %d : %s\n",
                       LogTime(), PROGRAM, MAX_PAC_GROUP_SIZE, ad_groups);
             }
@@ -249,6 +249,7 @@ getdomaingids(char *ad_groups, uint32_t DomainLogonId, char **Rids, uint32_t Gro
 
         snprintf(dli,sizeof(dli),"S-%d-%lu",rev,(long unsigned int)idauth);
         for ( l=0; l<(int)nauth; l++ ) {
+            uint32_t sauth;
             sauth = get4byt();
             snprintf((char *)&dli[strlen(dli)],sizeof(dli)-strlen(dli),"-%u",sauth);
         }
@@ -284,30 +285,30 @@ getextrasids(char *ad_groups, uint32_t ExtraSids, uint32_t SidCount)
 
         for ( l=0; l<(int)SidCount; l++ ) {
             char es[256];
-            uint32_t nauth;
-            uint8_t rev;
-            uint64_t idauth;
-            uint32_t sauth;
-            int k;
 
             if (pa[l] != 0) {
+                uint32_t nauth;
+                uint8_t rev;
+                uint64_t idauth;
+
                 nauth = get4byt();
 
                 length = 1+1+6+nauth*4;
                 ag = (char *)xcalloc((length)*sizeof(char),1);
                 memcpy((void *)ag,(const void*)&p[bpos],length);
                 if (!ad_groups) {
-                    if (!xstrcpy(ad_groups,"group=")) {
-                        debug((char *) "%s| %s: WARN: Too many groups ! size > %d : %s\n",
-                              LogTime(), PROGRAM, MAX_PAC_GROUP_SIZE, ad_groups);
-                    }
+                    debug((char *) "%s| %s: ERR: No space to store groups\n",
+                          LogTime(), PROGRAM);
+                    xfree(pa);
+                    xfree(ag);
+                    return NULL;
                 } else {
-                    if (!xstrcat(ad_groups," group=")) {
+                    if (!pstrcat(ad_groups," group=")) {
                         debug((char *) "%s| %s: WARN: Too many groups ! size > %d : %s\n",
                               LogTime(), PROGRAM, MAX_PAC_GROUP_SIZE, ad_groups);
                     }
                 }
-                if (!xstrcat(ad_groups,base64_encode_bin(ag, (int)length))) {
+                if (!pstrcat(ad_groups,base64_encode_bin(ag, (int)length))) {
                     debug((char *) "%s| %s: WARN: Too many groups ! size > %d : %s\n",
                           LogTime(), PROGRAM, MAX_PAC_GROUP_SIZE, ad_groups);
                 }
@@ -318,7 +319,8 @@ getextrasids(char *ad_groups, uint32_t ExtraSids, uint32_t SidCount)
                 idauth = get6byt_be();
 
                 snprintf(es,sizeof(es),"S-%d-%lu",rev,(long unsigned int)idauth);
-                for ( k=0; k<(int)nauth; k++ ) {
+                for (int k=0; k<(int)nauth; k++ ) {
+                    uint32_t sauth;
                     sauth = get4byt();
                     snprintf((char *)&es[strlen(es)],sizeof(es)-strlen(es),"-%u",sauth);
                 }
@@ -355,7 +357,13 @@ get_ad_groups(char *ad_groups, krb5_context context, krb5_pac pac)
     char **Rids=NULL;
     int l=0;
 
-    ad_data = (krb5_data *)xmalloc(sizeof(krb5_data));
+    if (!ad_groups) {
+        debug((char *) "%s| %s: ERR: No space to store groups\n",
+              LogTime(), PROGRAM);
+        return NULL;
+    }
+
+    ad_data = (krb5_data *)xcalloc(1,sizeof(krb5_data));
 
 #define KERB_LOGON_INFO 1
     ret = krb5_pac_get_buffer(context, pac, KERB_LOGON_INFO, ad_data);
@@ -465,3 +473,4 @@ k5clean:
     return NULL;
 }
 #endif
+

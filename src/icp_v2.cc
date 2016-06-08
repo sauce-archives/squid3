@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 12    Internet Cache Protocol (ICP)
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 12    Internet Cache Protocol (ICP) */
 
 /**
  \defgroup ServerProtocolICPInternal2 ICPv2 Internals
@@ -65,9 +43,7 @@
 #include "tools.h"
 #include "wordlist.h"
 
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
+#include <cerrno>
 
 static void icpIncomingConnectionOpened(const Comm::ConnectionPointer &conn, int errNo);
 
@@ -96,12 +72,12 @@ Comm::ConnectionPointer icpOutgoingConn = NULL;
 
 /* icp_common_t */
 _icp_common_t::_icp_common_t() :
-        opcode(ICP_INVALID), version(0), length(0), reqnum(0),
-        flags(0), pad(0), shostid(0)
+    opcode(ICP_INVALID), version(0), length(0), reqnum(0),
+    flags(0), pad(0), shostid(0)
 {}
 
 _icp_common_t::_icp_common_t(char *buf, unsigned int len) :
-        opcode(ICP_INVALID), version(0), reqnum(0), flags(0), pad(0), shostid(0)
+    opcode(ICP_INVALID), version(0), reqnum(0), flags(0), pad(0), shostid(0)
 {
     if (len < sizeof(_icp_common_t)) {
         /* mark as invalid */
@@ -131,10 +107,10 @@ _icp_common_t::getOpCode() const
 /* ICPState */
 
 ICPState::ICPState(icp_common_t &aHeader, HttpRequest *aRequest):
-        header(aHeader),
-        request(aRequest),
-        fd(-1),
-        url(NULL)
+    header(aHeader),
+    request(aRequest),
+    fd(-1),
+    url(NULL)
 {
     HTTPMSGLOCK(request);
 }
@@ -155,7 +131,7 @@ class ICP2State : public ICPState, public StoreClient
 
 public:
     ICP2State(icp_common_t & aHeader, HttpRequest *aRequest):
-            ICPState(aHeader, aRequest),rtt(0),src_rtt(0),flags(0) {}
+        ICPState(aHeader, aRequest),rtt(0),src_rtt(0),flags(0) {}
 
     ~ICP2State();
     void created(StoreEntry * newEntry);
@@ -222,7 +198,8 @@ icpLogIcp(const Ip::Address &caddr, LogTags logcode, int len, const char *url, i
 
     al->cache.caddr = caddr;
 
-    al->cache.replySize = len;
+    // XXX: move to use icp.clientReply instead
+    al->http.clientReplySz.payloadData = len;
 
     al->cache.code = logcode;
 
@@ -500,21 +477,15 @@ doV2Query(int fd, Ip::Address &from, char *buf, icp_common_t header)
 #endif /* USE_ICMP */
 
     /* The peer is allowed to use this cache */
-    ICP2State *state = new ICP2State (header, icp_request);
-
+    ICP2State *state = new ICP2State(header, icp_request);
     state->fd = fd;
-
     state->from = from;
-
-    state->url = xstrdup (url);
-
+    state->url = xstrdup(url);
     state->flags = flags;
-
     state->rtt = rtt;
-
     state->src_rtt = src_rtt;
 
-    StoreEntry::getPublic (state, url, Http::METHOD_GET);
+    StoreEntry::getPublic(state, url, Http::METHOD_GET);
 
     HTTPMSGUNLOCK(icp_request);
 }
@@ -659,7 +630,7 @@ icpHandleUdp(int sock, void *data)
             break;
         }
 
-        icp_version = (int) buf[1];	/* cheat! */
+        icp_version = (int) buf[1]; /* cheat! */
 
         if (icpOutgoingConn->local == from)
             // ignore ICP packets which loop back (multicast usually)
@@ -860,3 +831,4 @@ icpGetCacheKey(const char *url, int reqnum)
 
     return storeKeyPublic(url, Http::METHOD_GET);
 }
+

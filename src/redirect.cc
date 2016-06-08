@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 61    Redirector
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 61    Redirector */
 
 #include "squid.h"
 #include "acl/Checklist.h"
@@ -37,56 +15,77 @@
 #include "client_side_request.h"
 #include "comm/Connection.h"
 #include "fde.h"
-#include "fqdncache.h"
+#include "format/Format.h"
 #include "globals.h"
+#include "helper.h"
+#include "helper/Reply.h"
 #include "HttpRequest.h"
 #include "mgr/Registration.h"
 #include "redirect.h"
 #include "rfc1738.h"
+#include "SBuf.h"
 #include "SquidConfig.h"
 #include "Store.h"
 #if USE_AUTH
 #include "auth/UserRequest.h"
 #endif
-#if USE_SSL
+#if USE_OPENSSL
 #include "ssl/support.h"
 #endif
 
 /// url maximum lengh + extra informations passed to redirector
 #define MAX_REDIRECTOR_REQUEST_STRLEN (MAX_URL + 1024)
 
-typedef struct {
-    void *data;
-    char *orig_url;
+class RedirectStateData
+{
+public:
+    explicit RedirectStateData(const char *url);
+    ~RedirectStateData();
 
-    Ip::Address client_addr;
-    const char *client_ident;
-    const char *method_s;
+    void *data;
+    SBuf orig_url;
+
     HLPCB *handler;
-} redirectStateData;
+
+private:
+    CBDATA_CLASS2(RedirectStateData);
+};
 
 static HLPCB redirectHandleReply;
 static HLPCB storeIdHandleReply;
-static void redirectStateFree(redirectStateData * r);
 static helper *redirectors = NULL;
 static helper *storeIds = NULL;
 static OBJH redirectStats;
 static OBJH storeIdStats;
 static int redirectorBypassed = 0;
 static int storeIdBypassed = 0;
-CBDATA_TYPE(redirectStateData);
+static Format::Format *redirectorExtrasFmt = NULL;
+static Format::Format *storeIdExtrasFmt = NULL;
+
+CBDATA_CLASS_INIT(RedirectStateData);
+
+RedirectStateData::RedirectStateData(const char *url) :
+    data(NULL),
+    orig_url(url),
+    handler(NULL)
+{
+}
+
+RedirectStateData::~RedirectStateData()
+{
+}
 
 static void
-redirectHandleReply(void *data, const HelperReply &reply)
+redirectHandleReply(void *data, const Helper::Reply &reply)
 {
-    redirectStateData *r = static_cast<redirectStateData *>(data);
+    RedirectStateData *r = static_cast<RedirectStateData *>(data);
     debugs(61, 5, HERE << "reply=" << reply);
 
     // XXX: This function is now kept only to check for and display the garbage use-case
     // and to map the old helper response format(s) into new format result code and key=value pairs
     // it can be removed when the helpers are all updated to the normalized "OK/ERR kv-pairs" format
 
-    if (reply.result == HelperReply::Unknown) {
+    if (reply.result == Helper::Unknown) {
         // BACKWARD COMPATIBILITY 2012-06-15:
         // Some nasty old helpers send back the entire input line including extra format keys.
         // This is especially bad for simple perl search-replace filter scripts.
@@ -112,16 +111,29 @@ redirectHandleReply(void *data, const HelperReply &reply)
                  * At this point altering the helper buffer in that way is not harmful, but annoying.
                  * When Bug 1961 is resolved and urlParse has a const API, this needs to die.
                  */
-                const char * result = reply.other().content();
-                const Http::StatusCode status = static_cast<Http::StatusCode>(atoi(result));
+                char * result = reply.modifiableOther().content();
 
-                HelperReply newReply;
+                Helper::Reply newReply;
                 // BACKWARD COMPATIBILITY 2012-06-15:
-                // We got HelperReply::Unknown reply result but new
-                // redirectStateData handlers require HelperReply::Okay,
+                // We got Helper::Unknown reply result but new
+                // RedirectStateData handlers require Helper::Okay,
                 // else will drop the helper reply
-                newReply.result = HelperReply::Okay;
+                newReply.result = Helper::Okay;
                 newReply.notes.append(&reply.notes);
+
+                // check and parse for obsoleted Squid-2 urlgroup feature
+                if (*result == '!') {
+                    static int urlgroupWarning = 0;
+                    if (!urlgroupWarning++)
+                        debugs(85, DBG_IMPORTANT, "UPGRADE WARNING: URL rewriter using obsolete Squid-2 urlgroup feature needs updating.");
+                    if (char *t = strchr(result+1, '!')) {
+                        *t = '\0';
+                        newReply.notes.add("urlgroup", result+1);
+                        result = t + 1;
+                    }
+                }
+
+                const Http::StatusCode status = static_cast<Http::StatusCode>(atoi(result));
 
                 if (status == Http::scMovedPermanently
                         || status == Http::scFound
@@ -143,14 +155,15 @@ redirectHandleReply(void *data, const HelperReply &reply)
                     // status code is not a redirect code (or does not exist)
                     // treat as a re-write URL request
                     // TODO: validate the URL produced here is RFC 2616 compliant URI
-                    newReply.notes.add("rewrite-url", reply.other().content());
+                    if (*result)
+                        newReply.notes.add("rewrite-url", result);
                 }
 
                 void *cbdata;
                 if (cbdataReferenceValidDone(r->data, &cbdata))
                     r->handler(cbdata, newReply);
 
-                redirectStateFree(r);
+                delete r;
                 return;
             }
         }
@@ -160,13 +173,13 @@ redirectHandleReply(void *data, const HelperReply &reply)
     if (cbdataReferenceValidDone(r->data, &cbdata))
         r->handler(cbdata, reply);
 
-    redirectStateFree(r);
+    delete r;
 }
 
 static void
-storeIdHandleReply(void *data, const HelperReply &reply)
+storeIdHandleReply(void *data, const Helper::Reply &reply)
 {
-    redirectStateData *r = static_cast<redirectStateData *>(data);
+    RedirectStateData *r = static_cast<RedirectStateData *>(data);
     debugs(61, 5,"StoreId helper: reply=" << reply);
 
     // XXX: This function is now kept only to check for and display the garbage use-case
@@ -176,14 +189,7 @@ storeIdHandleReply(void *data, const HelperReply &reply)
     if (cbdataReferenceValidDone(r->data, &cbdata))
         r->handler(cbdata, reply);
 
-    redirectStateFree(r);
-}
-
-static void
-redirectStateFree(redirectStateData * r)
-{
-    safe_free(r->orig_url);
-    cbdataFree(r);
+    delete r;
 }
 
 static void
@@ -217,72 +223,28 @@ storeIdStats(StoreEntry * sentry)
 }
 
 static void
-constructHelperQuery(const char *name, helper *hlp, HLPCB *replyHandler, ClientHttpRequest * http, HLPCB *handler, void *data)
+constructHelperQuery(const char *name, helper *hlp, HLPCB *replyHandler, ClientHttpRequest * http, HLPCB *handler, void *data, Format::Format *requestExtrasFmt)
 {
-    ConnStateData * conn = http->getConn();
-    const char *fqdn;
     char buf[MAX_REDIRECTOR_REQUEST_STRLEN];
     int sz;
     Http::StatusCode status;
-    char claddr[MAX_IPSTRLEN];
-    char myaddr[MAX_IPSTRLEN];
 
     /** TODO: create a standalone method to initialize
-     * the cbdata\redirectStateData for all the helpers.
+     * the RedirectStateData for all the helpers.
      */
-    redirectStateData *r = cbdataAlloc(redirectStateData);
-    r->orig_url = xstrdup(http->uri);
-    if (conn != NULL)
-        r->client_addr = conn->log_addr;
-    else
-        r->client_addr.setNoAddr();
-    r->client_ident = NULL;
-#if USE_AUTH
-    if (http->request->auth_user_request != NULL) {
-        r->client_ident = http->request->auth_user_request->username();
-        debugs(61, 5, HERE << "auth-user=" << (r->client_ident?r->client_ident:"NULL"));
-    }
-#endif
-
-    // HttpRequest initializes with null_string. So we must check both defined() and size()
-    if (!r->client_ident && http->request->extacl_user.defined() && http->request->extacl_user.size()) {
-        r->client_ident = http->request->extacl_user.termedBuf();
-        debugs(61, 5, HERE << "acl-user=" << (r->client_ident?r->client_ident:"NULL"));
-    }
-
-    if (!r->client_ident && conn != NULL && conn->clientConnection != NULL && conn->clientConnection->rfc931[0]) {
-        r->client_ident = conn->clientConnection->rfc931;
-        debugs(61, 5, HERE << "ident-user=" << (r->client_ident?r->client_ident:"NULL"));
-    }
-
-#if USE_SSL
-
-    if (!r->client_ident && conn != NULL && Comm::IsConnOpen(conn->clientConnection)) {
-        r->client_ident = sslGetUserEmail(fd_table[conn->clientConnection->fd].ssl);
-        debugs(61, 5, HERE << "ssl-user=" << (r->client_ident?r->client_ident:"NULL"));
-    }
-#endif
-
-    if (!r->client_ident)
-        r->client_ident = dash_str;
-
-    r->method_s = RequestMethodStr(http->request->method);
-
+    RedirectStateData *r = new RedirectStateData(http->uri);
     r->handler = handler;
-
     r->data = cbdataReference(data);
 
-    if ((fqdn = fqdncache_gethostbyaddr(r->client_addr, 0)) == NULL)
-        fqdn = dash_str;
+    static MemBuf requestExtras;
+    requestExtras.reset();
+    if (requestExtrasFmt)
+        requestExtrasFmt->assemble(requestExtras, http->al, 0);
 
-    sz = snprintf(buf, MAX_REDIRECTOR_REQUEST_STRLEN, "%s %s/%s %s %s myip=%s myport=%d\n",
-                  r->orig_url,
-                  r->client_addr.toStr(claddr,MAX_IPSTRLEN),
-                  fqdn,
-                  r->client_ident[0] ? rfc1738_escape(r->client_ident) : dash_str,
-                  r->method_s,
-                  http->request->my_addr.toStr(myaddr,MAX_IPSTRLEN),
-                  http->request->my_addr.port());
+    sz = snprintf(buf, MAX_REDIRECTOR_REQUEST_STRLEN, "%s%s%s\n",
+                  r->orig_url.c_str(),
+                  requestExtras.hasContent() ? " " : "",
+                  requestExtras.hasContent() ? requestExtras.content() : "");
 
     if ((sz<=0) || (sz>=MAX_REDIRECTOR_REQUEST_STRLEN)) {
         if (sz<=0) {
@@ -332,14 +294,14 @@ redirectStart(ClientHttpRequest * http, HLPCB * handler, void *data)
     if (Config.onoff.redirector_bypass && redirectors->stats.queue_size) {
         /* Skip redirector if there is one request queued */
         ++redirectorBypassed;
-        HelperReply bypassReply;
-        bypassReply.result = HelperReply::Okay;
+        Helper::Reply bypassReply;
+        bypassReply.result = Helper::Okay;
         bypassReply.notes.add("message","URL rewrite/redirect queue too long. Bypassed.");
         handler(data, bypassReply);
         return;
     }
 
-    constructHelperQuery("redirector", redirectors, redirectHandleReply, http, handler, data);
+    constructHelperQuery("redirector", redirectors, redirectHandleReply, http, handler, data, redirectorExtrasFmt);
 }
 
 /**
@@ -356,38 +318,27 @@ storeIdStart(ClientHttpRequest * http, HLPCB * handler, void *data)
     if (Config.onoff.store_id_bypass && storeIds->stats.queue_size) {
         /* Skip StoreID Helper if there is one request queued */
         ++storeIdBypassed;
-        HelperReply bypassReply;
+        Helper::Reply bypassReply;
 
-        bypassReply.result = HelperReply::Okay;
+        bypassReply.result = Helper::Okay;
 
         bypassReply.notes.add("message","StoreId helper queue too long. Bypassed.");
         handler(data, bypassReply);
         return;
     }
 
-    constructHelperQuery("storeId helper", storeIds, storeIdHandleReply, http, handler, data);
-}
-
-static void
-redirectRegisterWithCacheManager(void)
-{
-    Mgr::RegisterAction("redirector", "URL Redirector Stats", redirectStats, 0, 1);
-    Mgr::RegisterAction("store_id", "StoreId helper Stats", storeIdStats, 0, 1); /* registering the new StoreID statistics in Mgr*/
+    constructHelperQuery("storeId helper", storeIds, storeIdHandleReply, http, handler, data, storeIdExtrasFmt);
 }
 
 void
 redirectInit(void)
 {
-    static int init = 0;
+    static bool init = false;
 
-    redirectRegisterWithCacheManager();
-
-    /** FIXME: Temporary unified helpers startup
-     * When and if needed for more helpers a separated startup
-     * method will be added for each of them.
-     */
-    if (!Config.Program.redirect && !Config.Program.store_id)
-        return;
+    if (!init) {
+        Mgr::RegisterAction("redirector", "URL Redirector Stats", redirectStats, 0, 1);
+        Mgr::RegisterAction("store_id", "StoreId helper Stats", storeIdStats, 0, 1);
+    }
 
     if (Config.Program.redirect) {
 
@@ -417,10 +368,17 @@ redirectInit(void)
         helperOpenServers(storeIds);
     }
 
-    if (!init) {
-        init = 1;
-        CBDATA_INIT_TYPE(redirectStateData);
+    if (Config.redirector_extras) {
+        redirectorExtrasFmt = new ::Format::Format("url_rewrite_extras");
+        (void)redirectorExtrasFmt->parse(Config.redirector_extras);
     }
+
+    if (Config.storeId_extras) {
+        storeIdExtrasFmt = new ::Format::Format("store_id_extras");
+        (void)storeIdExtrasFmt->parse(Config.storeId_extras);
+    }
+
+    init = true;
 }
 
 void
@@ -448,4 +406,10 @@ redirectShutdown(void)
     delete storeIds;
     storeIds = NULL;
 
+    delete redirectorExtrasFmt;
+    redirectorExtrasFmt = NULL;
+
+    delete storeIdExtrasFmt;
+    storeIdExtrasFmt = NULL;
 }
+

@@ -1,36 +1,15 @@
 /*
- * DEBUG: section 21    Misc Functions
- * AUTHOR: Harvest Derived
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
+/* DEBUG: section 21    Misc Functions */
+
 #include "squid.h"
+#include "anyp/PortCfg.h"
 #include "base/Subscription.h"
 #include "client_side.h"
 #include "disk.h"
@@ -40,18 +19,18 @@
 #include "ICP.h"
 #include "ip/Intercept.h"
 #include "ip/QosConfig.h"
+#include "ipc/Coordinator.h"
+#include "ipc/Kids.h"
+#include "ipcache.h"
 #include "MemBuf.h"
-#include "anyp/PortCfg.h"
 #include "SquidConfig.h"
 #include "SquidMath.h"
 #include "SquidTime.h"
-#include "ipc/Kids.h"
-#include "ipc/Coordinator.h"
-#include "ipcache.h"
-#include "tools.h"
 #include "SwapDir.h"
+#include "tools.h"
 #include "wordlist.h"
 
+#include <cerrno>
 #if HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
 #endif
@@ -67,9 +46,6 @@
 #if HAVE_GRP_H
 #include <grp.h>
 #endif
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
 
 #define DEAD_MSG "\
 The Squid Cache (version %s) died.\n\
@@ -82,12 +58,9 @@ and report the trace back to squid-bugs@squid-cache.org.\n\
 Thanks!\n"
 
 static void mail_warranty(void);
-#if MEM_GEN_TRACE
-void log_trace_done();
-void log_trace_init(char *);
-#endif
-static void restoreCapabilities(int keep);
+static void restoreCapabilities(bool keep);
 int DebugSignal = -1;
+SBuf service_name(APP_SHORTNAME);
 
 #if _SQUID_LINUX_
 /* Workaround for crappy glic header files */
@@ -107,8 +80,8 @@ releaseServerSockets(void)
 {
     // Release the main ports as early as possible
 
-    // clear both http_port and https_port lists.
-    clientHttpConnectionsClose();
+    // clear http_port, https_port, and ftp_port lists
+    clientConnectionsClose();
 
     // clear icp_port's
     icpClosePorts();
@@ -169,7 +142,7 @@ mail_warranty(void)
     fclose(fp);
 
     snprintf(command, 256, "%s %s < %s", Config.EmailProgram, Config.adminEmail, filename);
-    if (system(command)) {}		/* XXX should avoid system(3) */
+    if (system(command)) {}     /* XXX should avoid system(3) */
     unlink(filename);
 #if !HAVE_MKSTEMP
     xfree(filename); // tempnam() requires us to free its allocation
@@ -187,68 +160,7 @@ dumpMallocStats(void)
     fprintf(debug_log, "\tTotal free:            %6d KB %d%%\n",
             (int) (ms.bytes_free >> 10),
             Math::intPercent(ms.bytes_free, ms.bytes_total));
-#elif HAVE_MALLINFO && HAVE_STRUCT_MALLINFO
-
-    struct mallinfo mp;
-    int t;
-
-    if (!do_mallinfo)
-        return;
-
-    mp = mallinfo();
-
-    fprintf(debug_log, "Memory usage for " APP_SHORTNAME " via mallinfo():\n");
-
-    fprintf(debug_log, "\ttotal space in arena:  %6ld KB\n",
-            (long)mp.arena >> 10);
-
-    fprintf(debug_log, "\tOrdinary blocks:       %6ld KB %6ld blks\n",
-            (long)mp.uordblks >> 10, (long)mp.ordblks);
-
-    fprintf(debug_log, "\tSmall blocks:          %6ld KB %6ld blks\n",
-            (long)mp.usmblks >> 10, (long)mp.smblks);
-
-    fprintf(debug_log, "\tHolding blocks:        %6ld KB %6ld blks\n",
-            (long)mp.hblkhd >> 10, (long)mp.hblks);
-
-    fprintf(debug_log, "\tFree Small blocks:     %6ld KB\n",
-            (long)mp.fsmblks >> 10);
-
-    fprintf(debug_log, "\tFree Ordinary blocks:  %6ld KB\n",
-            (long)mp.fordblks >> 10);
-
-    t = mp.uordblks + mp.usmblks + mp.hblkhd;
-
-    fprintf(debug_log, "\tTotal in use:          %6d KB %d%%\n",
-            t >> 10, Math::intPercent(t, mp.arena));
-
-    t = mp.fsmblks + mp.fordblks;
-
-    fprintf(debug_log, "\tTotal free:            %6d KB %d%%\n",
-            t >> 10, Math::intPercent(t, mp.arena));
-
-#if HAVE_STRUCT_MALLINFO_MXFAST
-
-    fprintf(debug_log, "\tmax size of small blocks:\t%d\n",
-            mp.mxfast);
-
-    fprintf(debug_log, "\tnumber of small blocks in a holding block:\t%d\n",
-            mp.nlblks);
-
-    fprintf(debug_log, "\tsmall block rounding factor:\t%d\n",
-            mp.grain);
-
-    fprintf(debug_log, "\tspace (including overhead) allocated in ord. blks:\t%d\n",
-            mp.uordbytes);
-
-    fprintf(debug_log, "\tnumber of ordinary blocks allocated:\t%d\n",
-            mp.allocated);
-
-    fprintf(debug_log, "\tbytes used in maintaining the free tree:\t%d\n",
-            mp.treeoverhead);
-
-#endif /* HAVE_STRUCT_MALLINFO_MXFAST */
-#endif /* HAVE_MALLINFO */
+#endif
 }
 
 void
@@ -385,7 +297,7 @@ death(int sig)
 #if PRINT_STACK_TRACE
 #if _SQUID_HPUX_
     {
-        extern void U_STACK_TRACE(void);	/* link with -lcl */
+        extern void U_STACK_TRACE(void);    /* link with -lcl */
         fflush(debug_log);
         dup2(fileno(debug_log), 2);
         U_STACK_TRACE();
@@ -393,8 +305,8 @@ death(int sig)
 
 #endif /* _SQUID_HPUX_ */
 #if _SQUID_SOLARIS_ && HAVE_LIBOPCOM_STACK
-    {				/* get ftp://opcom.sun.ca/pub/tars/opcom_stack.tar.gz and */
-        extern void opcom_stack_trace(void);	/* link with -lopcom_stack */
+    {   /* get ftp://opcom.sun.ca/pub/tars/opcom_stack.tar.gz and */
+        extern void opcom_stack_trace(void);    /* link with -lopcom_stack */
         fflush(debug_log);
         dup2(fileno(debug_log), fileno(stdout));
         opcom_stack_trace();
@@ -463,27 +375,15 @@ sigusr2_handle(int sig)
     DebugSignal = sig;
 
     if (state == 0) {
-#if !MEM_GEN_TRACE
         Debug::parseOptions("ALL,7");
-#else
-
-        log_trace_done();
-#endif
-
         state = 1;
     } else {
-#if !MEM_GEN_TRACE
         Debug::parseOptions(Debug::debugOptions);
-#else
-
-        log_trace_init("/tmp/squid.alloc");
-#endif
-
         state = 0;
     }
 
 #if !HAVE_SIGACTION
-    if (signal(sig, sigusr2_handle) == SIG_ERR)	/* reinstall */
+    if (signal(sig, sigusr2_handle) == SIG_ERR) /* reinstall */
         debugs(50, DBG_CRITICAL, "signal: sig=" << sig << " func=sigusr2_handle: " << xstrerror());
 
 #endif
@@ -556,13 +456,13 @@ getMyHostname(void)
 
     host[0] = '\0';
 
-    if (Config.Sockaddr.http && sa.isAnyAddr())
-        sa = Config.Sockaddr.http->s;
+    if (HttpPortList != NULL && sa.isAnyAddr())
+        sa = HttpPortList->s;
 
-#if USE_SSL
+#if USE_OPENSSL
 
-    if (Config.Sockaddr.https && sa.isAnyAddr())
-        sa = Config.Sockaddr.https->s;
+    if (HttpsPortList != NULL && sa.isAnyAddr())
+        sa = HttpsPortList->s;
 
 #endif
 
@@ -581,13 +481,13 @@ getMyHostname(void)
 
             present = 1;
 
-            Ip::Address::FreeAddrInfo(AI);
+            Ip::Address::FreeAddr(AI);
 
             if (strchr(host, '.'))
                 return host;
         }
 
-        Ip::Address::FreeAddrInfo(AI);
+        Ip::Address::FreeAddr(AI);
         debugs(50, 2, "WARNING: failed to resolve " << sa << " to a fully qualified hostname");
     }
 
@@ -693,7 +593,7 @@ leave_suid(void)
 
 #endif
 
-    restoreCapabilities(1);
+    restoreCapabilities(true);
 
 #if HAVE_PRCTL && defined(PR_SET_DUMPABLE)
     /* Set Linux DUMPABLE flag */
@@ -741,7 +641,7 @@ no_suid(void)
     if (setuid(uid) < 0)
         debugs(50, DBG_IMPORTANT, "ERROR: no_suid: setuid(" << uid << "): " << xstrerror());
 
-    restoreCapabilities(0);
+    restoreCapabilities(false);
 
 #if HAVE_PRCTL && defined(PR_SET_DUMPABLE)
     /* Set Linux DUMPABLE flag */
@@ -940,7 +840,7 @@ setMaxFD(void)
 #endif
 
     if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
-        debugs(50, DBG_CRITICAL, "setrlimit: RLIMIT_NOFILE: " << xstrerror());
+        debugs(50, DBG_CRITICAL, "getrlimit: RLIMIT_NOFILE: " << xstrerror());
     } else if (Config.max_filedescriptors > 0) {
 #if USE_SELECT || USE_SELECT_WIN32
         /* select() breaks if this gets set too big */
@@ -986,7 +886,7 @@ setSystemLimits(void)
 #endif
 
     if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
-        debugs(50, DBG_CRITICAL, "setrlimit: RLIMIT_NOFILE: " << xstrerror());
+        debugs(50, DBG_CRITICAL, "getrlimit: RLIMIT_NOFILE: " << xstrerror());
     } else {
         rl.rlim_cur = Squid_MaxFD;
         if (setrlimit(RLIMIT_NOFILE, &rl) < 0) {
@@ -996,11 +896,11 @@ setSystemLimits(void)
     }
 #endif /* HAVE_SETRLIMIT */
 
-#if HAVE_SETRLIMIT && defined(RLIMIT_DATA)
+#if HAVE_SETRLIMIT && defined(RLIMIT_DATA) && !_SQUID_CYGWIN_
     if (getrlimit(RLIMIT_DATA, &rl) < 0) {
         debugs(50, DBG_CRITICAL, "getrlimit: RLIMIT_DATA: " << xstrerror());
     } else if (rl.rlim_max > rl.rlim_cur) {
-        rl.rlim_cur = rl.rlim_max;	/* set it to the max */
+        rl.rlim_cur = rl.rlim_max;  /* set it to the max */
 
         if (setrlimit(RLIMIT_DATA, &rl) < 0) {
             snprintf(tmp_error_buf, ERROR_BUF_SZ, "setrlimit: RLIMIT_DATA: %s", xstrerror());
@@ -1012,11 +912,11 @@ setSystemLimits(void)
         debugs(50, DBG_IMPORTANT, "NOTICE: Could not increase the number of filedescriptors");
     }
 
-#if HAVE_SETRLIMIT && defined(RLIMIT_VMEM)
+#if HAVE_SETRLIMIT && defined(RLIMIT_VMEM) && !_SQUID_CYGWIN_
     if (getrlimit(RLIMIT_VMEM, &rl) < 0) {
         debugs(50, DBG_CRITICAL, "getrlimit: RLIMIT_VMEM: " << xstrerror());
     } else if (rl.rlim_max > rl.rlim_cur) {
-        rl.rlim_cur = rl.rlim_max;	/* set it to the max */
+        rl.rlim_cur = rl.rlim_max;  /* set it to the max */
 
         if (setrlimit(RLIMIT_VMEM, &rl) < 0) {
             snprintf(tmp_error_buf, ERROR_BUF_SZ, "setrlimit: RLIMIT_VMEM: %s", xstrerror());
@@ -1138,14 +1038,14 @@ parseEtcHosts(void)
     setmode(fileno(fp), O_TEXT);
 #endif
 
-    while (fgets(buf, 1024, fp)) {	/* for each line */
+    while (fgets(buf, 1024, fp)) {  /* for each line */
         wordlist *hosts = NULL;
         char *addr;
 
-        if (buf[0] == '#')	/* MS-windows likes to add comments */
+        if (buf[0] == '#')  /* MS-windows likes to add comments */
             continue;
 
-        strtok(buf, "#");	/* chop everything following a comment marker */
+        strtok(buf, "#");   /* chop everything following a comment marker */
 
         lt = buf;
 
@@ -1155,10 +1055,10 @@ parseEtcHosts(void)
 
         nt = strpbrk(lt, w_space);
 
-        if (nt == NULL)		/* empty line */
+        if (nt == NULL)     /* empty line */
             continue;
 
-        *nt = '\0';		/* null-terminate the address */
+        *nt = '\0';     /* null-terminate the address */
 
         debugs(1, 5, "etc_hosts: address is '" << addr << "'");
 
@@ -1167,7 +1067,7 @@ parseEtcHosts(void)
         while ((nt = strpbrk(lt, w_space))) {
             char *host = NULL;
 
-            if (nt == lt) {	/* multiple spaces */
+            if (nt == lt) { /* multiple spaces */
                 debugs(1, 5, "etc_hosts: multiple spaces, skipping");
                 lt = nt + 1;
                 continue;
@@ -1210,24 +1110,32 @@ parseEtcHosts(void)
 int
 getMyPort(void)
 {
-    AnyP::PortCfg *p = NULL;
-    if ((p = Config.Sockaddr.http)) {
+    AnyP::PortCfgPointer p;
+    if ((p = HttpPortList) != NULL) {
         // skip any special interception ports
-        while (p && p->flags.isIntercepted())
+        while (p != NULL && p->flags.isIntercepted())
             p = p->next;
-        if (p)
+        if (p != NULL)
             return p->s.port();
     }
 
-#if USE_SSL
-    if ((p = Config.Sockaddr.https)) {
+#if USE_OPENSSL
+    if ((p = HttpsPortList) != NULL) {
         // skip any special interception ports
-        while (p && p->flags.isIntercepted())
+        while (p != NULL && p->flags.isIntercepted())
             p = p->next;
-        if (p)
+        if (p != NULL)
             return p->s.port();
     }
 #endif
+
+    if ((p = FtpPortList) != NULL) {
+        // skip any special interception ports
+        while (p != NULL && p->flags.isIntercepted())
+            p = p->next;
+        if (p != NULL)
+            return p->s.port();
+    }
 
     debugs(21, DBG_CRITICAL, "ERROR: No forward-proxy ports configured.");
     return 0; // Invalid port. This will result in invalid URLs on bad configurations.
@@ -1302,7 +1210,7 @@ keepCapabilities(void)
 }
 
 static void
-restoreCapabilities(int keep)
+restoreCapabilities(bool keep)
 {
     /* NP: keep these two if-endif separate. Non-Linux work perfectly well without Linux syscap support. */
 #if USE_LIBCAP
@@ -1319,7 +1227,10 @@ restoreCapabilities(int keep)
         cap_value_t cap_list[10];
         cap_list[ncaps] = CAP_NET_BIND_SERVICE;
         ++ncaps;
-        if (Ip::Interceptor.TransparentActive() || Ip::Qos::TheConfig.isHitNfmarkActive() || Ip::Qos::TheConfig.isAclNfmarkActive()) {
+        if (Ip::Interceptor.TransparentActive() ||
+                Ip::Qos::TheConfig.isHitNfmarkActive() ||
+                Ip::Qos::TheConfig.isAclNfmarkActive() ||
+                Ip::Qos::TheConfig.isAclTosActive()) {
             cap_list[ncaps] = CAP_NET_ADMIN;
             ++ncaps;
         }
@@ -1337,3 +1248,4 @@ restoreCapabilities(int keep)
     Ip::Interceptor.StopTransparency("Missing needed capability support.");
 #endif /* HAVE_SYS_CAPABILITY_H */
 }
+

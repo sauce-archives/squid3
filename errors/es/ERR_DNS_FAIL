@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERROR: El URL solicitado no se ha podido conseguir</title>
 <style type="text/css"><!-- 
@@ -25,7 +26,7 @@ body
 
 <p>El servidor DNS devolvió:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%z</pre>
 </blockquote>
 
 <p>Esto significa que el cach&eacute; no ha sido capaz de resolver el nombre de m&aacute;quina presente en la URL. Compruebe que la direcci&oacute;n sea correcta.</p>

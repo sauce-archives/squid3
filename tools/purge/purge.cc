@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 // Author:  Jens-S. V?ckler <voeckler@rvs.uni-hannover.de>
 //
 // File:    purge.cc
@@ -93,18 +101,17 @@
 #include "squid.h"
 #include "util.h"
 
-#include <stdarg.h>
-#include <stdio.h>
+#include <cerrno>
+#include <climits>
+#include <csignal>
+#include <cstdarg>
+#include <cstdlib>
+#include <cstring>
 #include <dirent.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <signal.h>
-#include <errno.h>
 
 #if HAVE_SIGINFO_H
 #include <siginfo.h>
@@ -115,12 +122,12 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "convert.hh"
-#include "socket.hh"
-#include "signal.hh"
-#include "squid-tlv.hh"
-#include "copyout.hh"
 #include "conffile.hh"
+#include "convert.hh"
+#include "copyout.hh"
+#include "signal.hh"
+#include "socket.hh"
+#include "squid-tlv.hh"
 
 #ifndef DEFAULTHOST
 #define DEFAULTHOST "localhost"
@@ -156,7 +163,7 @@ struct REList {
 };
 
 REList::REList( const char* what, bool doCase )
-        :next(0),data(xstrdup(what))
+    :next(0),data(xstrdup(what))
 {
     int result = regcomp( &rexp, what,
                           REG_EXTENDED | REG_NOSUB | (doCase ? 0 : REG_ICASE) );
@@ -305,10 +312,10 @@ action( int fd, size_t metasize,
         const char* fn, const char* url, const SquidMetaList& meta )
 // purpose: if cmdline-requested, send the purge request to the cache
 // paramtr: fd (IN): open FD for the object file
-//	      metasize (IN): offset into data portion of file (meta data size)
+//        metasize (IN): offset into data portion of file (meta data size)
 //          fn (IN): name of the object file
 //          url (IN): URL string stored in the object file
-//	      meta (IN): list containing further meta data
+//        meta (IN): list containing further meta data
 // returns: true for a successful action, false otherwise. The action
 //          may just print the file, send the purge request or even
 //          remove unwanted files.
@@ -987,3 +994,4 @@ main( int argc, char* argv[] )
     delete list;
     return 0;
 }
+

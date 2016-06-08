@@ -2,58 +2,60 @@
  * Auto-Generated File. Changes will be destroyed.
  */
 #include "squid.h"
+#include "SBuf.h"
 #include "http/MethodType.h"
 namespace Http
 {
 
-const char *MethodType_str[] = {
-	"NONE",
+const SBuf MethodType_sb[] = {
+	SBuf("NONE"),
+	SBuf("GET"),
+	SBuf("POST"),
+	SBuf("PUT"),
+	SBuf("HEAD"),
+	SBuf("CONNECT"),
+	SBuf("TRACE"),
+	SBuf("OPTIONS"),
+	SBuf("DELETE"),
 #if NO_SPECIAL_HANDLING
-	"LINK",
-	"UNLINK",
+	SBuf("LINK"),
+	SBuf("UNLINK"),
 #endif
-	"GET",
-	"POST",
-	"PUT",
-	"HEAD",
-	"CONNECT",
-	"TRACE",
-	"OPTIONS",
-	"DELETE",
-	"CHECKOUT",
-	"CHECKIN",
-	"UNCHECKOUT",
-	"MKWORKSPACE",
-	"VERSION-CONTROL",
-	"REPORT",
-	"UPDATE",
-	"LABEL",
-	"MERGE",
-	"BASELINE-CONTROL",
-	"MKACTIVITY",
+	SBuf("CHECKOUT"),
+	SBuf("CHECKIN"),
+	SBuf("UNCHECKOUT"),
+	SBuf("MKWORKSPACE"),
+	SBuf("VERSION-CONTROL"),
+	SBuf("REPORT"),
+	SBuf("UPDATE"),
+	SBuf("LABEL"),
+	SBuf("MERGE"),
+	SBuf("BASELINE-CONTROL"),
+	SBuf("MKACTIVITY"),
 #if NO_SPECIAL_HANDLING
-	"ORDERPATCH",
-	"ACL",
-	"MKREDIRECTREF",
-	"UPDATEREDIRECTREF",
-	"MKCALENDAR",
+	SBuf("ORDERPATCH"),
+	SBuf("ACL"),
+	SBuf("MKREDIRECTREF"),
+	SBuf("UPDATEREDIRECTREF"),
+	SBuf("MKCALENDAR"),
 #endif
-	"PROPFIND",
-	"PROPPATCH",
-	"MKCOL",
-	"COPY",
-	"MOVE",
-	"LOCK",
-	"UNLOCK",
-	"SEARCH",
+	SBuf("PROPFIND"),
+	SBuf("PROPPATCH"),
+	SBuf("MKCOL"),
+	SBuf("COPY"),
+	SBuf("MOVE"),
+	SBuf("LOCK"),
+	SBuf("UNLOCK"),
+	SBuf("SEARCH"),
 #if NO_SPECIAL_HANDLING
-	"PATCH",
-	"BIND",
-	"REBIND",
-	"UNBIND",
+	SBuf("PATCH"),
+	SBuf("BIND"),
+	SBuf("REBIND"),
+	SBuf("UNBIND"),
 #endif
-	"PURGE",
-	"OTHER",
-	"ENUM_END"
+	SBuf("PRI"),
+	SBuf("PURGE"),
+	SBuf("OTHER"),
+	SBuf("ENUM_END")
 };
 }; // namespace Http

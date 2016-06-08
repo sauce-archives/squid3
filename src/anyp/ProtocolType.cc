@@ -6,7 +6,7 @@
 namespace AnyP
 {
 
-const char *ProtocolType_str[] = {
+const char * ProtocolType_str[] = {
 	"NONE",
 	"HTTP",
 	"FTP",
@@ -22,7 +22,6 @@ const char *ProtocolType_str[] = {
 #endif
 	"URN",
 	"WHOIS",
-	"INTERNAL",
 	"ICY",
 	"UNKNOWN",
 	"MAX"

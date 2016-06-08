@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>GREŠKA: Tražena adresa (URL) ne može da se učita</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Neispravan odgovor</b> greška prilikom obrade vašeg zahteva:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>HTTP odgovor dobijen od kontaktiranog servera nije moguće razumeti ili je na neki način pogrešno formiran. Molimo kontaktirajte operatora sajta.</p>

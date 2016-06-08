@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERRO: A URL solicitada não pode ser recuperada</title>
 <style type="text/css"><!-- 
@@ -17,7 +18,7 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>The following error was encountered while trying to retrieve the URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
 <p><b>Incapaz de determinar o endereço IP através do nome do host <q>%H</q></b></p>
@@ -25,18 +26,18 @@ body
 
 <p>O servidor DNS retornou:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%z</pre>
 </blockquote>
 
 <p>This means that the cache was not able to resolve the hostname presented in the URL. Check if the address is correct.</p>
 
-<p></p>
+<p>Your cache administrator is <a href="mailto:%w%W">%w</a>.</p>
 <br>
 </div>
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Gerado %T por %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

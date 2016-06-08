@@ -1,12 +1,20 @@
 /*
- * DEBUG: section 28    Access Control
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 28    Access Control */
 
 #include "squid.h"
 #include "acl/Checklist.h"
 #include "acl/Tree.h"
 #include "Debug.h"
 #include "profiler/Profiler.h"
+
+#include <algorithm>
 
 /// common parts of nonBlockingCheck() and resumeNonBlockingCheck()
 bool
@@ -167,16 +175,16 @@ ACLChecklist::checkCallback(allow_t answer)
 }
 
 ACLChecklist::ACLChecklist() :
-        accessList (NULL),
-        callback (NULL),
-        callback_data (NULL),
-        asyncCaller_(false),
-        occupied_(false),
-        finished_(false),
-        allow_(ACCESS_DENIED),
-        asyncStage_(asyncNone),
-        state_(NullState::Instance()),
-        asyncLoopDepth_(0)
+    accessList (NULL),
+    callback (NULL),
+    callback_data (NULL),
+    asyncCaller_(false),
+    occupied_(false),
+    finished_(false),
+    allow_(ACCESS_DENIED),
+    asyncStage_(asyncNone),
+    state_(NullState::Instance()),
+    asyncLoopDepth_(0)
 {
 }
 
@@ -384,3 +392,18 @@ ACLChecklist::callerGone()
 {
     return !cbdataReferenceValid(callback_data);
 }
+
+bool
+ACLChecklist::bannedAction(const allow_t &action) const
+{
+    const bool found = std::find(bannedActions_.begin(), bannedActions_.end(), action) != bannedActions_.end();
+    debugs(28, 5, "Action '" << action << "/" << action.kind << (found ? " is " : "is not") << " banned");
+    return found;
+}
+
+void
+ACLChecklist::banAction(const allow_t &action)
+{
+    bannedActions_.push_back(action);
+}
+

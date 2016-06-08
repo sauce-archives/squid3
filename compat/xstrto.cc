@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_XSTRTO_C_
 #define SQUID_XSTRTO_C_
 
@@ -20,8 +28,8 @@
  * Update/Maintenance History:
  *
  *    12-Sep-2010 : Copied from iptables xtables.c
- * 			- xtables_strtoui renamed to xstrtoui
- * 			- xtables_strtoul renamed to xstrtoul
+ *          - xtables_strtoui renamed to xstrtoui
+ *          - xtables_strtoul renamed to xstrtoul
  *
  *  Original License and code follows.
  */
@@ -47,9 +55,7 @@
  *      Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
+#include <cerrno>
 
 bool
 xstrtoul(const char *s, char **end, unsigned long *value,
@@ -94,3 +100,4 @@ xstrtoui(const char *s, char **end, unsigned int *value,
 }
 
 #endif /* SQUID_XSTRTO_C_ */
+

@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>CHYBA: Požadovaný URL nebolo možné získať</title>
 <style type="text/css"><!-- 
@@ -20,10 +21,10 @@ body
 <p>Pri pokuse o získanie URL sa vyskytla nasledovná chyba: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Time Quota Exceeded.</b></p>
 </blockquote>
 
-<p></p>
+<p>This proxy limits your time online with a quota. Your time budget is now empty but will be refilled when the configured time period starts again.</p>
 <p>Tieto obmedzenia zaviedol poskytovateľ tohto cache servera. Prosím, kontaktujte ho priamo ak máte pocit, že to je chyba.</p>
 
 <p>Vaším správcom cache je <a href="mailto:%w%W">%w</a>.</p>

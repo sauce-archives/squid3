@@ -1,12 +1,18 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef _SQUID_SRC_LOG_TCPLOGGER_H
 #define _SQUID_SRC_LOG_TCPLOGGER_H
 
 #include "base/AsyncJob.h"
 #include "ip/Address.h"
 
-#if HAVE_LIST
 #include <list>
-#endif
 
 class MemBlob;
 typedef RefCount<MemBlob> MemBlobPointer;
@@ -104,3 +110,4 @@ private:
 } // namespace Log
 
 #endif /* _SQUID_SRC_LOG_TCPLOGGER_H */
+

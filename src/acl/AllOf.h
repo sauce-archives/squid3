@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ACL_ALL_OF_H
 #define SQUID_ACL_ALL_OF_H
 
@@ -18,7 +26,7 @@ public:
     virtual char const *typeString() const;
     virtual ACL *clone() const;
     virtual void parse();
-    virtual wordlist *dump() const;
+    virtual SBufList dump() const;
 
 private:
     /* Acl::InnerNode API */
@@ -32,3 +40,4 @@ MEMPROXY_CLASS_INLINE(Acl::AllOf);
 } // namespace Acl
 
 #endif /* SQUID_ACL_ALL_OF_H */
+

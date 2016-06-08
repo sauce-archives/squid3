@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 01    Startup and Main Loop
- * AUTHOR: Harvest Derived
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 01    Startup and Main Loop */
 
 #include "squid.h"
 #include "AccessLogEntry.h"
@@ -53,8 +31,8 @@
 #include "ExternalACL.h"
 #include "fd.h"
 #include "format/Token.h"
-#include "fs/Module.h"
 #include "fqdncache.h"
+#include "fs/Module.h"
 #include "FwdState.h"
 #include "globals.h"
 #include "htcp.h"
@@ -64,33 +42,35 @@
 #include "icmp/net_db.h"
 #include "ICP.h"
 #include "ident/Ident.h"
-#include "ipcache.h"
+#include "ip/tools.h"
 #include "ipc/Coordinator.h"
 #include "ipc/Kids.h"
 #include "ipc/Strand.h"
-#include "ip/tools.h"
+#include "ipcache.h"
 #include "Mem.h"
 #include "MemPool.h"
 #include "mime.h"
 #include "neighbors.h"
+#include "parser/Tokenizer.h"
 #include "pconn.h"
-#include "PeerSelectState.h"
 #include "peer_sourcehash.h"
 #include "peer_userhash.h"
+#include "PeerSelectState.h"
 #include "profiler/Profiler.h"
 #include "redirect.h"
 #include "refresh.h"
+#include "SBufStatsAction.h"
 #include "send-announce.h"
-#include "store_log.h"
-#include "tools.h"
 #include "SquidConfig.h"
 #include "SquidDns.h"
 #include "SquidTime.h"
 #include "stat.h"
 #include "StatCounters.h"
-#include "StoreFileSystem.h"
 #include "Store.h"
+#include "store_log.h"
+#include "StoreFileSystem.h"
 #include "SwapDir.h"
+#include "tools.h"
 #include "unlinkd.h"
 #include "URL.h"
 #include "wccp.h"
@@ -122,9 +102,9 @@
 #if USE_SSL_CRTD
 #include "ssl/certificate_db.h"
 #endif
-#if USE_SSL
-#include "ssl/helper.h"
+#if USE_OPENSSL
 #include "ssl/context_storage.h"
+#include "ssl/helper.h"
 #endif
 #if ICAP_CLIENT
 #include "adaptation/icap/Config.h"
@@ -142,14 +122,12 @@
 #include "snmp_core.h"
 #endif
 
+#include <cerrno>
 #if HAVE_PATHS_H
 #include <paths.h>
 #endif
 #if HAVE_SYS_WAIT_H
 #include <sys/wait.h>
-#endif
-#if HAVE_ERRNO_H
-#include <errno.h>
 #endif
 
 #if USE_WIN32_SERVICE
@@ -157,14 +135,14 @@
 
 static int opt_install_service = FALSE;
 static int opt_remove_service = FALSE;
-static int opt_signal_service = FALSE;
 static int opt_command_line = FALSE;
 void WIN32_svcstatusupdate(DWORD, DWORD);
 void WINAPI WIN32_svcHandler(DWORD);
 #endif
 
+static int opt_signal_service = FALSE;
 static char *opt_syslog_facility = NULL;
-static int icpPortNumOverride = 1;	/* Want to detect "-u 0" */
+static int icpPortNumOverride = 1;  /* Want to detect "-u 0" */
 static int configured_once = 0;
 #if MALLOC_DBG
 static int malloc_debug_level = 0;
@@ -189,10 +167,6 @@ static void serverConnectionsOpen(void);
 static void serverConnectionsClose(void);
 static void watch_child(char **);
 static void setEffectiveUser(void);
-#if MEM_GEN_TRACE
-void log_trace_done();
-void log_trace_init(char *);
-#endif
 static void SquidShutdown(void);
 static void mainSetCwd(void);
 static int checkRunningPid(void);
@@ -221,17 +195,27 @@ class SignalEngine: public AsyncEngine
 {
 
 public:
-    SignalEngine(EventLoop &evtLoop) : loop(evtLoop) {}
     virtual int checkEvents(int timeout);
 
 private:
-    static void StopEventLoop(void * data) {
-        static_cast<SignalEngine *>(data)->loop.stop();
+    static void StopEventLoop(void *) {
+        if (EventLoop::Running)
+            EventLoop::Running->stop();
+    }
+
+    static void FinalShutdownRunners(void *) {
+        RunRegisteredHere(RegisteredRunner::endingShutdown);
+
+        // XXX: this should be a Runner.
+#if USE_AUTH
+        /* detach the auth components (only do this on full shutdown) */
+        Auth::Scheme::FreeAll();
+#endif
+
+        eventAdd("SquidTerminate", &StopEventLoop, NULL, 0, 1, false);
     }
 
     void doShutdown(time_t wait);
-
-    EventLoop &loop;
 };
 
 int
@@ -240,8 +224,10 @@ SignalEngine::checkEvents(int timeout)
     PROF_start(SignalEngine_checkEvents);
 
     if (do_reconfigure) {
-        mainReconfigureStart();
-        do_reconfigure = 0;
+        if (!reconfiguring && configured_once) {
+            mainReconfigureStart();
+            do_reconfigure = 0;
+        } // else wait until previous reconfigure is done
     } else if (do_rotate) {
         mainRotate();
         do_rotate = 0;
@@ -272,22 +258,19 @@ SignalEngine::doShutdown(time_t wait)
 
     /* run the closure code which can be shared with reconfigure */
     serverConnectionsClose();
-#if USE_AUTH
-    /* detach the auth components (only do this on full shutdown) */
-    Auth::Scheme::FreeAll();
-#endif
-    eventAdd("SquidShutdown", &StopEventLoop, this, (double) (wait + 1), 1, false);
+    RunRegisteredHere(RegisteredRunner::startShutdown);
+    eventAdd("SquidShutdown", &FinalShutdownRunners, this, (double) (wait + 1), 1, false);
 }
 
 static void
 usage(void)
 {
     fprintf(stderr,
+            "Usage: %s [-cdhvzCFNRVYX] [-n name] [-s | -l facility] [-f config-file] [-[au] port] [-k signal]"
 #if USE_WIN32_SERVICE
-            "Usage: %s [-cdhirvzCFNRVYX] [-s | -l facility] [-f config-file] [-[au] port] [-k signal] [-n name] [-O CommandLine]\n"
-#else
-            "Usage: %s [-cdhvzCFNRVYX] [-s | -l facility] [-f config-file] [-[au] port] [-k signal]\n"
+            "[-ir] [-O CommandLine]"
 #endif
+            "\n"
             "       -a port   Specify HTTP port number (default: %d).\n"
             "       -d level  Write debugging to stderr also.\n"
             "       -f file   Use given config-file instead of\n"
@@ -303,9 +286,9 @@ usage(void)
             "interrupt|kill|debug|check|parse\n"
             "                 Parse configuration file, then send signal to \n"
             "                 running copy (except -k parse) and exit.\n"
+            "       -n name   Specify service name to use for service operations\n"
+            "                 default is: " APP_SHORTNAME ".\n"
 #if USE_WIN32_SERVICE
-            "       -n name   Specify Windows Service name to use for service operations\n"
-            "                 default is: " _WIN_SQUID_DEFAULT_SERVICE_NAME ".\n"
             "       -r        Removes a Windows Service (see -n option).\n"
 #endif
             "       -s | -l facility\n"
@@ -344,7 +327,7 @@ mainParseOptions(int argc, char *argv[])
 #if USE_WIN32_SERVICE
     while ((c = getopt(argc, argv, "CDFNO:RSVYXa:d:f:hik:m::n:rsl:u:vz?")) != -1)
 #else
-    while ((c = getopt(argc, argv, "CDFNRSYXa:d:f:hk:m::sl:u:vz?")) != -1)
+    while ((c = getopt(argc, argv, "CDFNRSYXa:d:f:hk:m::n:sl:u:vz?")) != -1)
 #endif
     {
 
@@ -485,7 +468,7 @@ mainParseOptions(int argc, char *argv[])
 
             else if (!strncmp(optarg, "check", strlen(optarg)))
                 /** \li On check send 0 / SIGNULL. */
-                opt_send_signal = 0;	/* SIGNULL */
+                opt_send_signal = 0;    /* SIGNULL */
             else if (!strncmp(optarg, "parse", strlen(optarg)))
                 /** \li On parse set global flag to re-parse the config file only. */
                 opt_parse_cfg_only = 1;
@@ -508,19 +491,27 @@ mainParseOptions(int argc, char *argv[])
             }
             break;
 
-#if USE_WIN32_SERVICE
-
         case 'n':
             /** \par n
-             * Set global option opt_signal_service (to TRUE).
-             * Stores the additional parameter given in global WIN32_Service_name */
-            xfree(WIN32_Service_name);
-
-            WIN32_Service_name = xstrdup(optarg);
-
-            opt_signal_service = TRUE;
-
+             * Set global option opt_signal_service (to true).
+             * Stores the additional parameter given in global service_name */
+            if (optarg && *optarg != '\0') {
+                const SBuf t(optarg);
+                ::Parser::Tokenizer tok(t);
+                const CharacterSet chr = CharacterSet::ALPHA+CharacterSet::DIGIT;
+                if (!tok.prefix(service_name, chr))
+                    fatalf("Expected alphanumeric service name for the -n option but got: %s", optarg);
+                if (!tok.atEnd())
+                    fatalf("Garbage after alphanumeric service name in the -n option value: %s", optarg);
+                if (service_name.length() > 32)
+                    fatalf("Service name (-n option) must be limited to 32 characters but got %u", service_name.length());
+                opt_signal_service = true;
+            } else {
+                fatal("A service name is required for the -n option");
+            }
             break;
+
+#if USE_WIN32_SERVICE
 
         case 'r':
             /** \par r
@@ -569,6 +560,7 @@ mainParseOptions(int argc, char *argv[])
             /** \par v
              * Display squid version and build information. Then exit. */
             printf("Squid Cache: Version %s\n" ,version_string);
+            printf("Service Name: " SQUIDSBUFPH "\n", SQUIDSBUFPRINT(service_name));
             if (strlen(SQUID_BUILD_INFO))
                 printf("%s\n",SQUID_BUILD_INFO);
             printf( "configure options: %s\n", SQUID_CONFIGURE_OPTIONS);
@@ -581,7 +573,7 @@ mainParseOptions(int argc, char *argv[])
 
             exit(0);
 
-            /* NOTREACHED */
+        /* NOTREACHED */
 
         case 'z':
             /** \par z
@@ -638,13 +630,12 @@ shut_down(int sig)
 {
     do_shutdown = sig == SIGINT ? -1 : 1;
     ShutdownSignal = sig;
-#ifdef SIGTTIN
-
+#if defined(SIGTTIN)
     if (SIGTTIN == sig)
         shutdown_status = 1;
-
 #endif
 
+#if !_SQUID_WINDOWS_
     const pid_t ppid = getppid();
 
     if (!IamMasterProcess() && ppid > 1) {
@@ -654,17 +645,15 @@ shut_down(int sig)
                    " pid " << ppid << ": " << xstrerror());
     }
 
-#if !_SQUID_WINDOWS_
 #if KILL_PARENT_OPT
-
     if (!IamMasterProcess() && ppid > 1) {
         debugs(1, DBG_IMPORTANT, "Killing master process, pid " << ppid);
 
         if (kill(ppid, sig) < 0)
             debugs(1, DBG_IMPORTANT, "kill " << ppid << ": " << xstrerror());
     }
-
 #endif /* KILL_PARENT_OPT */
+
 #if SA_RESETHAND == 0
     signal(SIGTERM, SIG_DFL);
 
@@ -728,7 +717,7 @@ serverConnectionsClose(void)
 #endif
     }
     if (IamWorkerProcess()) {
-        clientHttpConnectionsClose();
+        clientConnectionsClose();
         icpConnectionShutdown();
 #if USE_HTCP
         htcpSocketShutdown();
@@ -759,7 +748,7 @@ mainReconfigureStart(void)
 #if USE_SSL_CRTD
     Ssl::Helper::GetInstance()->Shutdown();
 #endif
-#if USE_SSL
+#if USE_OPENSSL
     if (Ssl::CertValidationHelper::GetInstance())
         Ssl::CertValidationHelper::GetInstance()->Shutdown();
     Ssl::TheGlobalContextStorage.reconfigureStart();
@@ -786,7 +775,7 @@ mainReconfigureFinish(void *)
     debugs(1, 3, "finishing reconfiguring");
 
     errorClean();
-    enter_suid();		/* root to read config file */
+    enter_suid();       /* root to read config file */
 
     // we may have disabled the need for PURGE
     if (Config2.onoff.enable_purge)
@@ -794,16 +783,26 @@ mainReconfigureFinish(void *)
 
     // parse the config returns a count of errors encountered.
     const int oldWorkers = Config.workers;
-    if ( parseConfigFile(ConfigFile) != 0) {
+    try {
+        if (parseConfigFile(ConfigFile) != 0) {
+            // for now any errors are a fatal condition...
+            self_destruct();
+        }
+    } catch (...) {
         // for now any errors are a fatal condition...
+        debugs(1, DBG_CRITICAL, "FATAL: Unhandled exception parsing config file. " <<
+               " Run squid -k parse and check for errors.");
         self_destruct();
     }
+
     if (oldWorkers != Config.workers) {
         debugs(1, DBG_CRITICAL, "WARNING: Changing 'workers' (from " <<
                oldWorkers << " to " << Config.workers <<
                ") requires a full restart. It has been ignored by reconfigure.");
         Config.workers = oldWorkers;
     }
+
+    RunRegisteredHere(RegisteredRunner::syncConfig);
 
     if (IamPrimaryProcess())
         CpuAffinityCheck();
@@ -813,10 +812,10 @@ mainReconfigureFinish(void *)
     Mem::Report();
     setEffectiveUser();
     _db_init(Debug::cache_log, Debug::debugOptions);
-    ipcache_restart();		/* clear stuck entries */
-    fqdncache_restart();	/* sigh, fqdncache too */
+    ipcache_restart();      /* clear stuck entries */
+    fqdncache_restart();    /* sigh, fqdncache too */
     parseEtcHosts();
-    errorInitialize();		/* reload error pages */
+    errorInitialize();      /* reload error pages */
     accessLogInit();
 
 #if USE_LOADABLE_MODULES
@@ -844,7 +843,7 @@ mainReconfigureFinish(void *)
 #if USE_SSL_CRTD
     Ssl::Helper::GetInstance()->Init();
 #endif
-#if USE_SSL
+#if USE_OPENSSL
     if (Ssl::CertValidationHelper::GetInstance())
         Ssl::CertValidationHelper::GetInstance()->Init();
 #endif
@@ -889,35 +888,33 @@ mainReconfigureFinish(void *)
             eventDelete(start_announce, NULL);
     }
 
-    writePidFile();		/* write PID file */
+    writePidFile();     /* write PID file */
 
     reconfiguring = 0;
+
+    // ignore any pending re-reconfigure signals if shutdown received
+    if (do_shutdown)
+        do_reconfigure = 0;
 }
 
 static void
 mainRotate(void)
 {
     icmpEngine.Close();
-#if USE_DNSHELPER
-    dnsShutdown();
-#endif
     redirectShutdown();
 #if USE_AUTH
     authenticateRotate();
 #endif
     externalAclShutdown();
 
-    _db_rotate_log();		/* cache.log */
+    _db_rotate_log();       /* cache.log */
     storeDirWriteCleanLogs(1);
-    storeLogRotate();		/* store.log */
-    accessLogRotate();		/* access.log */
+    storeLogRotate();       /* store.log */
+    accessLogRotate();      /* access.log */
 #if ICAP_CLIENT
     icapLogRotate();               /*icap.log*/
 #endif
     icmpEngine.Open();
-#if USE_DNSHELPER
-    dnsInit();
-#endif
     redirectInit();
 #if USE_AUTH
     authenticateInit(&Auth::TheConfig);
@@ -929,7 +926,7 @@ static void
 setEffectiveUser(void)
 {
     keepCapabilities();
-    leave_suid();		/* Run as non privilegied user */
+    leave_suid();       /* Run as non privilegied user */
 #if _SQUID_OS2_
 
     return;
@@ -1000,6 +997,7 @@ mainInitialize(void)
 
     squid_signal(SIGPIPE, SIG_IGN, SA_RESTART);
     squid_signal(SIGCHLD, sig_child, SA_NODEFER | SA_RESTART);
+    squid_signal(SIGHUP, reconfigure, SA_RESTART);
 
     setEffectiveUser();
 
@@ -1010,17 +1008,11 @@ mainInitialize(void)
 
     fd_open(fileno(debug_log), FD_LOG, Debug::cache_log);
 
-#if MEM_GEN_TRACE
-
-    log_trace_init("/tmp/squid.alloc");
-
-#endif
-
     debugs(1, DBG_CRITICAL, "Starting Squid Cache version " << version_string << " for " << CONFIG_HOST_TYPE << "...");
+    debugs(1, DBG_CRITICAL, "Service Name: " << service_name);
 
 #if _SQUID_WINDOWS_
     if (WIN32_run_mode == _WIN_SQUID_RUN_MODE_SERVICE) {
-        debugs(1, DBG_CRITICAL, "Running as " << WIN32_Service_name << " Windows System Service on " << WIN32_OS_string);
         debugs(1, DBG_CRITICAL, "Service command line is: " << WIN32_Service_Command_Line);
     } else
         debugs(1, DBG_CRITICAL, "Running on " << WIN32_OS_string);
@@ -1047,7 +1039,7 @@ mainInitialize(void)
 #endif
 
     if (!configured_once)
-        disk_init();		/* disk_init must go before ipcache_init() */
+        disk_init();        /* disk_init must go before ipcache_init() */
 
     ipcache_init();
 
@@ -1061,7 +1053,10 @@ mainInitialize(void)
     Ssl::Helper::GetInstance()->Init();
 #endif
 
-#if USE_SSL
+#if USE_OPENSSL
+    if (!configured_once)
+        Ssl::initialize_session_cache();
+
     if (Ssl::CertValidationHelper::GetInstance())
         Ssl::CertValidationHelper::GetInstance()->Init();
 #endif
@@ -1072,9 +1067,9 @@ mainInitialize(void)
 #endif
     externalAclInit();
 
-    httpHeaderInitModule();	/* must go before any header processing (e.g. the one in errorInitialize) */
+    httpHeaderInitModule(); /* must go before any header processing (e.g. the one in errorInitialize) */
 
-    httpReplyInitModule();	/* must go before accepting replies */
+    httpReplyInitModule();  /* must go before accepting replies */
 
     errorInitialize();
 
@@ -1107,8 +1102,6 @@ mainInitialize(void)
         statInit();
         storeInit();
         mainSetCwd();
-        /* after this point we want to see the mallinfo() output */
-        do_mallinfo = 1;
         mimeInit(Config.mimeTablePathname);
         refreshInit();
 #if USE_DELAY_POOLS
@@ -1119,6 +1112,8 @@ mainInitialize(void)
         /* register the modules in the cache manager menus */
 
         cbdataRegisterWithCacheManager();
+        SBufStatsAction::RegisterWithCacheManager();
+
         /* These use separate calls so that the comm loops can eventually
          * coexist.
          */
@@ -1152,7 +1147,7 @@ mainInitialize(void)
         no_suid();
 
     if (!configured_once)
-        writePidFile();		/* write PID file */
+        writePidFile();     /* write PID file */
 
 #if defined(_SQUID_LINUX_THREADS_)
 
@@ -1167,8 +1162,6 @@ mainInitialize(void)
     squid_signal(SIGUSR2, sigusr2_handle, SA_RESTART);
 
 #endif
-
-    squid_signal(SIGHUP, reconfigure, SA_RESTART);
 
     squid_signal(SIGTERM, shut_down, SA_NODEFER | SA_RESETHAND | SA_RESTART);
 
@@ -1239,19 +1232,29 @@ int SquidMain(int argc, char **argv);
 static int SquidMainSafe(int argc, char **argv);
 
 #if USE_WIN32_SERVICE
-/* When USE_WIN32_SERVICE is defined, the main function is placed in win32.cc */
+/* Entry point for Windows services */
 extern "C" void WINAPI
 SquidWinSvcMain(int argc, char **argv)
 {
     SquidMainSafe(argc, argv);
 }
-#else
+#endif
+
 int
 main(int argc, char **argv)
 {
+#if USE_WIN32_SERVICE
+    SetErrorMode(SEM_NOGPFAULTERRORBOX);
+    if ((argc == 2) && strstr(argv[1], _WIN_SQUID_SERVICE_OPTION))
+        return WIN32_StartService(argc, argv);
+    else {
+        WIN32_run_mode = _WIN_SQUID_RUN_MODE_INTERACTIVE;
+        opt_no_daemon = 1;
+    }
+#endif
+
     return SquidMainSafe(argc, argv);
 }
-#endif
 
 static int
 SquidMainSafe(int argc, char **argv)
@@ -1385,7 +1388,7 @@ SquidMain(int argc, char **argv)
 
         Mem::Init();
 
-        storeFsInit();		/* required for config parsing */
+        storeFsInit();      /* required for config parsing */
 
         /* TODO: call the FS::Clean() in shutdown to do Fs cleanups */
         Fs::Init();
@@ -1403,7 +1406,15 @@ SquidMain(int argc, char **argv)
 
         Format::Token::Init(); // XXX: temporary. Use a runners registry of pre-parse runners instead.
 
-        parse_err = parseConfigFile(ConfigFile);
+        try {
+            do_reconfigure = 0; // ignore any early (boot/startup) reconfigure signals
+            parse_err = parseConfigFile(ConfigFile);
+        } catch (...) {
+            // for now any errors are a fatal condition...
+            debugs(1, DBG_CRITICAL, "FATAL: Unhandled exception parsing config file." <<
+                   (opt_parse_cfg_only ? " Run squid -k parse and check for errors." : ""));
+            parse_err = 1;
+        }
 
         Mem::Report();
 
@@ -1443,9 +1454,9 @@ SquidMain(int argc, char **argv)
 
     debugs(1,2, HERE << "Doing post-config initialization\n");
     leave_suid();
-    ActivateRegistered(rrFinalizeConfig);
-    ActivateRegistered(rrClaimMemoryNeeds);
-    ActivateRegistered(rrAfterConfig);
+    RunRegisteredHere(RegisteredRunner::finalizeConfig);
+    RunRegisteredHere(RegisteredRunner::claimMemoryNeeds);
+    RunRegisteredHere(RegisteredRunner::useConfig);
     enter_suid();
 
     if (!opt_no_daemon && Config.workers > 0)
@@ -1495,7 +1506,7 @@ SquidMain(int argc, char **argv)
     /* main loop */
     EventLoop mainLoop;
 
-    SignalEngine signalEngine(mainLoop);
+    SignalEngine signalEngine;
 
     mainLoop.registerEngine(&signalEngine);
 
@@ -1804,9 +1815,9 @@ watch_child(char *argv[])
 
         if (!TheKids.someRunning() && !TheKids.shouldRestartSome()) {
             leave_suid();
-            DeactivateRegistered(rrAfterConfig);
-            DeactivateRegistered(rrClaimMemoryNeeds);
-            DeactivateRegistered(rrFinalizeConfig);
+            // XXX: Master process has no main loop and, hence, should not call
+            // RegisteredRunner::startShutdown which promises a loop iteration.
+            RunRegisteredHere(RegisteredRunner::finishShutdown);
             enter_suid();
 
             if (TheKids.someSignaled(SIGINT) || TheKids.someSignaled(SIGTERM)) {
@@ -1849,7 +1860,7 @@ SquidShutdown()
 #if USE_SSL_CRTD
     Ssl::Helper::GetInstance()->Shutdown();
 #endif
-#if USE_SSL
+#if USE_OPENSSL
     if (Ssl::CertValidationHelper::GetInstance())
         Ssl::CertValidationHelper::GetInstance()->Shutdown();
 #endif
@@ -1888,23 +1899,23 @@ SquidShutdown()
 
     WIN32_svcstatusupdate(SERVICE_STOP_PENDING, 10000);
 #endif
+#if ICAP_CLIENT
+    Adaptation::Icap::TheConfig.freeService();
+#endif
 
     Store::Root().sync(); /* Flush pending object writes/unlinks */
 
-    unlinkdClose();	  /* after sync/flush. NOP if !USE_UNLINKD */
+    unlinkdClose();   /* after sync/flush. NOP if !USE_UNLINKD */
 
     storeDirWriteCleanLogs(0);
     PrintRusage();
     dumpMallocStats();
-    Store::Root().sync();		/* Flush log writes */
+    Store::Root().sync();       /* Flush log writes */
     storeLogClose();
     accessLogClose();
-    Store::Root().sync();		/* Flush log close */
+    Store::Root().sync();       /* Flush log close */
     StoreFileSystem::FreeAllFs();
     DiskIOModule::FreeAllModules();
-    DeactivateRegistered(rrAfterConfig);
-    DeactivateRegistered(rrClaimMemoryNeeds);
-    DeactivateRegistered(rrFinalizeConfig);
 #if LEAK_CHECK_MODE && 0 /* doesn't work at the moment */
 
     configFreeMemory();
@@ -1928,13 +1939,9 @@ SquidShutdown()
 
     comm_exit();
 
+    RunRegisteredHere(RegisteredRunner::finishShutdown);
+
     memClean();
-
-#if MEM_GEN_TRACE
-
-    log_trace_done();
-
-#endif
 
     if (IamPrimaryProcess()) {
         if (Config.pidFilename && strcmp(Config.pidFilename, "none") != 0) {

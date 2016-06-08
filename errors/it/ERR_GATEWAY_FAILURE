@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERRORE: non è possibile accedere alla URL richiesta</title>
 <style type="text/css"><!-- 
@@ -20,12 +21,12 @@ body
 <p>Mentre si cercava di accedere alla URL <a href="%U">%U</a> si è presentato il seguente errore:</p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Errore nel Proxy Gateway</b></p>
 </blockquote>
 
-<p></p>
+<p>Un errore interno non recuperabile o un problema di configurazione impedisce di portare a termine questa richiesta.</p>
 
-<p>This may be due to limits established by the Internet Service Provider who operates this cache. Please contact them directly for more information.</p>
+<p>Questi limiti sono stati stabiliti dall'ISP che gestisce questo proxy. Contatta il fornitore del servizio se cerchi maggiori informazioni.</p>
 
 <p>L'amministratore del proxy è <a href="mailto:%w%W">%w</a>.</p>
 <br>
@@ -33,7 +34,7 @@ body
 
 <hr>
 <div id="footer">
-<p>Generato da %h (%s) il %T.</p>
+<p>Generato da %h (%s) il %T</p>
 <!-- %c -->
 </div>
 </body></html>

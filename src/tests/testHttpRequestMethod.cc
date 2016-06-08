@@ -1,15 +1,20 @@
-#define SQUID_UNIT_TEST 1
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
 
 #include "squid.h"
 #include <cppunit/TestAssert.h>
 
-#include "Mem.h"
-#include "testHttpRequestMethod.h"
 #include "HttpRequestMethod.h"
+#include "Mem.h"
+#include "SquidConfig.h"
+#include "testHttpRequestMethod.h"
 
-#if HAVE_SSTREAM
 #include <sstream>
-#endif
 
 CPPUNIT_TEST_SUITE_REGISTRATION( testHttpRequestMethod );
 
@@ -83,7 +88,17 @@ testHttpRequestMethod::testConstructmethod_t()
 void
 testHttpRequestMethod::testImage()
 {
-    CPPUNIT_ASSERT_EQUAL(String("POST"), String(HttpRequestMethod("post",NULL).image()));
+    // relaxed RFC-compliance parse HTTP methods are upgraded to correct case
+    Config.onoff.relaxed_header_parser = 1;
+    CPPUNIT_ASSERT_EQUAL(SBuf("POST"), HttpRequestMethod("POST",NULL).image());
+    CPPUNIT_ASSERT_EQUAL(SBuf("POST"), HttpRequestMethod("pOsT",NULL).image());
+    CPPUNIT_ASSERT_EQUAL(SBuf("POST"), HttpRequestMethod("post",NULL).image());
+
+    // strict RFC-compliance parse HTTP methods are case sensitive
+    Config.onoff.relaxed_header_parser = 0;
+    CPPUNIT_ASSERT_EQUAL(SBuf("POST"), HttpRequestMethod("POST",NULL).image());
+    CPPUNIT_ASSERT_EQUAL(SBuf("pOsT"), HttpRequestMethod("pOsT",NULL).image());
+    CPPUNIT_ASSERT_EQUAL(SBuf("post"), HttpRequestMethod("post",NULL).image());
 }
 
 /*
@@ -117,7 +132,16 @@ testHttpRequestMethod::testNotEqualmethod_t()
 void
 testHttpRequestMethod::testStream()
 {
+    // relaxed RFC-compliance parse HTTP methods are upgraded to correct case
+    Config.onoff.relaxed_header_parser = 1;
     std::ostringstream buffer;
-    buffer << HttpRequestMethod("get",NULL);
+    buffer << HttpRequestMethod("get", NULL);
     CPPUNIT_ASSERT_EQUAL(String("GET"), String(buffer.str().c_str()));
+
+    // strict RFC-compliance parse HTTP methods are case sensitive
+    Config.onoff.relaxed_header_parser = 0;
+    std::ostringstream buffer2;
+    buffer2 << HttpRequestMethod("get", NULL);
+    CPPUNIT_ASSERT_EQUAL(String("get"), String(buffer2.str().c_str()));
 }
+

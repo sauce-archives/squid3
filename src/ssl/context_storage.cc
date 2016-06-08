@@ -1,17 +1,24 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
+#include "mgr/Registration.h"
+#include "ssl/context_storage.h"
 #include "Store.h"
 #include "StoreEntryStream.h"
-#include "ssl/context_storage.h"
-#include "mgr/Registration.h"
-#if HAVE_LIMITS
+
 #include <limits>
-#endif
-#if USE_SSL
+#if HAVE_OPENSSL_SSL_H
 #include <openssl/ssl.h>
 #endif
 
 Ssl::CertificateStorageAction::CertificateStorageAction(const Mgr::Command::Pointer &aCmd)
-        :   Mgr::Action(aCmd)
+    :   Mgr::Action(aCmd)
 {}
 
 Ssl::CertificateStorageAction::Pointer
@@ -47,7 +54,7 @@ void Ssl::CertificateStorageAction::dump (StoreEntry *sentry)
 ///////////////////////////////////////////////////////
 
 Ssl::GlobalContextStorage::GlobalContextStorage()
-        :   reconfiguring(true)
+    :   reconfiguring(true)
 {
     RegisterAction("cached_ssl_cert", "Statistic of cached generated ssl certificates", &CertificateStorageAction::Create, 0, 1);
 }
@@ -88,12 +95,14 @@ void Ssl::GlobalContextStorage::reconfigureFinish()
         reconfiguring = false;
 
         // remove or change old local storages.
-        for (std::map<Ip::Address, LocalContextStorage *>::iterator i = storage.begin(); i != storage.end(); ++i) {
+        for (std::map<Ip::Address, LocalContextStorage *>::iterator i = storage.begin(); i != storage.end();) {
             std::map<Ip::Address, size_t>::iterator conf_i = configureStorage.find(i->first);
             if (conf_i == configureStorage.end() || conf_i->second <= 0) {
-                storage.erase(i);
+                delete i->second;
+                storage.erase(i++);
             } else {
                 i->second->setMemLimit(conf_i->second);
+                ++i;
             }
         }
 
@@ -107,3 +116,4 @@ void Ssl::GlobalContextStorage::reconfigureFinish()
 }
 
 Ssl::GlobalContextStorage Ssl::TheGlobalContextStorage;
+

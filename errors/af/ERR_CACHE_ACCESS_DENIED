@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Toegang tot kasgeheue geweier.</title>
 <style type="text/css"><!-- 
@@ -23,9 +24,9 @@ body
 <p><b>Toegang tot kasgeheue geweier.</b></p>
 </blockquote>
 
-<p></p>
+<p>Sorry, you are not currently allowed to request %U from this cache until you have authenticated yourself.</p>
 
-<p></p>
+<p>Please contact the <a href="mailto:%w%W">cache administrator</a> if you have difficulties authenticating yourself.</p>
 
 <br>
 </div>

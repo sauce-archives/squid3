@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERROR: El URL solicitado no se ha podido conseguir</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Respuesta Incorrecta</b> se ha encontrado un error mientras se intentaba procesar la petición:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>El mensaje de Respuesta HTTP recibido del servidor contactado no pudo ser entendido o ten&iacute;a alguna malformaci&oacute;n. Por favor contacte al operador del sitio.</p>

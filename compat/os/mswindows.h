@@ -1,38 +1,26 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * AUTHOR: Andrey Shorin <tolsty@tushino.com>
  * AUTHOR: Guido Serassio <serassio@squid-cache.org>
- *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
  */
+
 #ifndef SQUID_OS_MSWINDOWS_H
 #define SQUID_OS_MSWINDOWS_H
 
 #if _SQUID_WINDOWS_
+
+/****************************************************************************
+ *--------------------------------------------------------------------------*
+ * DO *NOT* MAKE ANY CHANGES below here unless you know what you're doing...*
+ *--------------------------------------------------------------------------*
+ ****************************************************************************/
 
 /* we target Windows XP and later - some API are missing otherwise */
 #if _SQUID_MINGW_
@@ -44,6 +32,11 @@
 #endif
 #endif /* _SQUID_MINGW_ */
 
+#include "compat/initgroups.h"
+
+#if HAVE_DIRECT_H
+#include <direct.h>
+#endif
 #if HAVE_FCNTL_H
 #include <fcntl.h>
 #endif /* HAVE_FCNTL_H */
@@ -77,7 +70,7 @@
 #endif
 
 #if defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64
-# define __USE_FILE_OFFSET64	1
+# define __USE_FILE_OFFSET64    1
 #endif
 
 #if defined(_MSC_VER) /* Microsoft C Compiler ONLY */
@@ -109,21 +102,14 @@ typedef unsigned long ino_t;
 #define fstat _fstati64
 #define lseek _lseeki64
 #define memccpy _memccpy
-#define mkdir(p,F) _mkdir((p))
 #define mktemp _mktemp
 #define snprintf _snprintf
 #define stat _stati64
 #define strcasecmp _stricmp
-#define strdup _strdup
 #define strlwr _strlwr
 #define strncasecmp _strnicmp
 #define tempnam _tempnam
 #define vsnprintf _vsnprintf
-#endif
-
-/* CygWin and MinGW compilers need these. Microsoft C Compiler does not. */
-#if _SQUID_MINGW_ || _SQUID_CYGWIN_
-#define mkdir(p,F) mkdir((p))
 #endif
 
 /*  Microsoft C Compiler and CygWin need these. MinGW does not */
@@ -132,15 +118,16 @@ SQUIDCEXTERN int WIN32_ftruncate(int fd, off_t size);
 #define ftruncate WIN32_ftruncate
 SQUIDCEXTERN int WIN32_truncate(const char *pathname, off_t length);
 #define truncate WIN32_truncate
+#define chdir _chdir
 #endif
 
 /* All three compiler systems need these: */
-#define chdir _chdir
 #define dup _dup
 #define dup2 _dup2
 #define fdopen _fdopen
 #define getcwd _getcwd
 #define getpid _getpid
+#define mkdir(p,F) mkdir((p))
 #define pclose _pclose
 #define popen _popen
 #define putenv _putenv
@@ -149,45 +136,106 @@ SQUIDCEXTERN int WIN32_truncate(const char *pathname, off_t length);
 #define umask _umask
 #define unlink _unlink
 
+#ifndef O_RDONLY
 #define O_RDONLY        _O_RDONLY
+#endif
+#ifndef O_WRONLY
 #define O_WRONLY        _O_WRONLY
+#endif
+#ifndef O_RDWR
 #define O_RDWR          _O_RDWR
+#endif
+#ifndef O_APPEND
 #define O_APPEND        _O_APPEND
-
+#endif
+#ifndef O_CREAT
 #define O_CREAT         _O_CREAT
+#endif
+#ifndef O_TRUNC
 #define O_TRUNC         _O_TRUNC
+#endif
+#ifndef O_EXCL
 #define O_EXCL          _O_EXCL
-
+#endif
+#ifndef O_TEXT
 #define O_TEXT          _O_TEXT
+#endif
+#ifndef O_BINARY
 #define O_BINARY        _O_BINARY
+#endif
+#ifndef O_RAW
 #define O_RAW           _O_BINARY
+#endif
+#ifndef O_TEMPORARY
 #define O_TEMPORARY     _O_TEMPORARY
+#endif
+#ifndef O_NOINHERIT
 #define O_NOINHERIT     _O_NOINHERIT
+#endif
+#ifndef O_SEQUENTIAL
 #define O_SEQUENTIAL    _O_SEQUENTIAL
+#endif
+#ifndef O_RANDOM
 #define O_RANDOM        _O_RANDOM
-#define O_NDELAY	0
-
-#define S_IFMT   _S_IFMT
-#define S_IFDIR  _S_IFDIR
-#define S_IFCHR  _S_IFCHR
-#define S_IFREG  _S_IFREG
-#define S_IREAD  _S_IREAD
-#define S_IWRITE _S_IWRITE
-#define S_IEXEC  _S_IEXEC
-
-#define S_IRWXO 007
-
-#if defined(_MSC_VER)
-#define	S_ISDIR(m) (((m) & _S_IFDIR) == _S_IFDIR)
+#endif
+#ifndef O_NDELAY
+#define O_NDELAY    0
 #endif
 
-#define	SIGHUP	1	/* hangup */
-#define	SIGKILL	9	/* kill (cannot be caught or ignored) */
-#define	SIGBUS	10	/* bus error */
-#define	SIGPIPE	13	/* write on a pipe with no one to read it */
-#define	SIGCHLD	20	/* to parent on child stop or exit */
-#define SIGUSR1 30	/* user defined signal 1 */
-#define SIGUSR2 31	/* user defined signal 2 */
+#ifndef S_IFMT
+#define S_IFMT   _S_IFMT
+#endif
+#ifndef S_IFDIR
+#define S_IFDIR  _S_IFDIR
+#endif
+#ifndef S_IFCHR
+#define S_IFCHR  _S_IFCHR
+#endif
+#ifndef S_IFREG
+#define S_IFREG  _S_IFREG
+#endif
+#ifndef S_IREAD
+#define S_IREAD  _S_IREAD
+#endif
+#ifndef S_IWRITE
+#define S_IWRITE _S_IWRITE
+#endif
+#ifndef S_IEXEC
+#define S_IEXEC  _S_IEXEC
+#endif
+#ifndef S_IRWXO
+#define S_IRWXO 007
+#endif
+
+/* There are no group protection bits like these in Windows.
+ * The values are used by umask() to remove permissions so
+ * mapping to user permission bits will break file accesses.
+ * Map group permissions to harmless zero instead.
+ */
+#ifndef S_IXGRP
+#define S_IXGRP 0
+#endif
+#ifndef S_IWGRP
+#define S_IWGRP 0
+#endif
+#ifndef S_IWOTH
+#define S_IWOTH 0
+#endif
+#ifndef S_IXOTH
+#define S_IXOTH 0
+#endif
+
+#if defined(_MSC_VER)
+#define S_ISDIR(m) (((m) & _S_IFDIR) == _S_IFDIR)
+#endif
+
+#define SIGHUP  1   /* hangup */
+#define SIGKILL 9   /* kill (cannot be caught or ignored) */
+#define SIGBUS  10  /* bus error */
+#define SIGPIPE 13  /* write on a pipe with no one to read it */
+#define SIGCHLD 20  /* to parent on child stop or exit */
+#define SIGUSR1 30  /* user defined signal 1 */
+#define SIGUSR2 31  /* user defined signal 2 */
 
 #if _SQUID_MINGW_
 typedef unsigned char boolean;
@@ -217,25 +265,10 @@ struct group {
     char    **gr_mem;      /* group members */
 };
 
-#if !_SQUID_MINGW_
-struct statfs {
-    long    f_type;     /* type of filesystem (see below) */
-    long    f_bsize;    /* optimal transfer block size */
-    long    f_blocks;   /* total data blocks in file system */
-    long    f_bfree;    /* free blocks in fs */
-    long    f_bavail;   /* free blocks avail to non-superuser */
-    long    f_files;    /* total file nodes in file system */
-    long    f_ffree;    /* free file nodes in fs */
-    long    f_fsid;     /* file system id */
-    long    f_namelen;  /* maximum length of filenames */
-    long    f_spare[6]; /* spare for later */
-};
-#endif
-
 #if !HAVE_GETTIMEOFDAY
 struct timezone {
-    int	tz_minuteswest;	/* minutes west of Greenwich */
-    int	tz_dsttime;	/* type of dst correction */
+    int tz_minuteswest; /* minutes west of Greenwich */
+    int tz_dsttime; /* type of dst correction */
 };
 #endif
 
@@ -381,7 +414,9 @@ typedef struct {
 #define _pioinfo(i) ( __pioinfo[(i) >> IOINFO_L2E] + ((i) & (IOINFO_ARRAY_ELTS - 1)) )
 #define _osfile(i)  ( _pioinfo(i)->osfile )
 #define _osfhnd(i)  ( _pioinfo(i)->osfhnd )
+#if !defined(FOPEN)
 #define FOPEN           0x01    /* file handle open */
+#endif
 
 #if defined(_MSC_VER)
 SQUIDCEXTERN _CRTIMP ioinfo * __pioinfo[];
@@ -497,7 +532,7 @@ accept(int s, struct sockaddr * a, socklen_t * l)
     } else
         return _open_osfhandle(result, 0);
 }
-#define accept(s,a,l) Squid::accept(s,a,l)
+#define accept(s,a,l) Squid::accept(s,a,reinterpret_cast<socklen_t*>(l))
 
 inline int
 bind(int s, const struct sockaddr * n, socklen_t l)
@@ -561,7 +596,7 @@ getsockname(int s, struct sockaddr * n, socklen_t * l)
     } else
         return 0;
 }
-#define getsockname(s,a,l) Squid::getsockname(s,a,l)
+#define getsockname(s,a,l) Squid::getsockname(s,a,reinterpret_cast<socklen_t*>(l))
 
 inline int
 gethostname(char * n, size_t l)
@@ -585,6 +620,13 @@ getsockopt(int s, int l, int o, void * v, socklen_t * n)
         return 0;
 }
 #define getsockopt(s,l,o,v,n) Squid::getsockopt(s,l,o,v,n)
+
+inline char *
+inet_ntop(int af, const void *src, char *dst, size_t size)
+{
+    return (char*)InetNtopA(af, const_cast<void*>(src), dst, size);
+}
+#define inet_ntop(a,s,d,l) Squid::inet_ntop(a,s,d,l)
 
 /* Simple ioctl() emulation */
 inline int
@@ -644,7 +686,7 @@ recvfrom(int s, void * b, size_t l, int f, struct sockaddr * fr, socklen_t * fl)
     } else
         return result;
 }
-#define recvfrom(s,b,l,f,r,n) Squid::recvfrom(s,b,l,f,r,n)
+#define recvfrom(s,b,l,f,r,n) Squid::recvfrom(s,b,l,f,r,reinterpret_cast<socklen_t*>(n))
 
 inline int
 select(int n, fd_set * r, fd_set * w, fd_set * e, struct timeval * t)
@@ -668,7 +710,7 @@ send(int s, const char * b, size_t l, int f)
     } else
         return result;
 }
-#define send(s,b,l,f) Squid::send(s,b,l,f)
+#define send(s,b,l,f) Squid::send(s,reinterpret_cast<const char*>(b),l,f)
 
 inline ssize_t
 sendto(int s, const void * b, size_t l, int f, const struct sockaddr * t, socklen_t tl)
@@ -777,27 +819,27 @@ WSASocket(int a, int t, int p, LPWSAPROTOCOL_INFO i, GROUP g, DWORD f)
 
 #else /* #ifdef __cplusplus */
 #define connect(s,n,l) \
-	(SOCKET_ERROR == connect(_get_osfhandle(s),n,l) ? \
-	(WSAEMFILE == (errno = WSAGetLastError()) ? errno = EMFILE : -1, -1) : 0)
+    (SOCKET_ERROR == connect(_get_osfhandle(s),n,l) ? \
+    (WSAEMFILE == (errno = WSAGetLastError()) ? errno = EMFILE : -1, -1) : 0)
 #define gethostbyname(n) \
-	(NULL == ((HOSTENT FAR*)(ws32_result = (int)gethostbyname(n))) ? \
-	(errno = WSAGetLastError()), (HOSTENT FAR*)NULL : (HOSTENT FAR*)ws32_result)
+    (NULL == ((HOSTENT FAR*)(ws32_result = (int)gethostbyname(n))) ? \
+    (errno = WSAGetLastError()), (HOSTENT FAR*)NULL : (HOSTENT FAR*)ws32_result)
 #define gethostname(n,l) \
-	(SOCKET_ERROR == gethostname(n,l) ? \
-	(errno = WSAGetLastError()), -1 : 0)
+    (SOCKET_ERROR == gethostname(n,l) ? \
+    (errno = WSAGetLastError()), -1 : 0)
 #define recv(s,b,l,f) \
-	(SOCKET_ERROR == (ws32_result = recv(_get_osfhandle(s),b,l,f)) ? \
-	(errno = WSAGetLastError()), -1 : ws32_result)
+    (SOCKET_ERROR == (ws32_result = recv(_get_osfhandle(s),b,l,f)) ? \
+    (errno = WSAGetLastError()), -1 : ws32_result)
 #define sendto(s,b,l,f,t,tl) \
-	(SOCKET_ERROR == (ws32_result = sendto(_get_osfhandle(s),b,l,f,t,tl)) ? \
-	(errno = WSAGetLastError()), -1 : ws32_result)
+    (SOCKET_ERROR == (ws32_result = sendto(_get_osfhandle(s),b,l,f,t,tl)) ? \
+    (errno = WSAGetLastError()), -1 : ws32_result)
 #define select(n,r,w,e,t) \
-	(SOCKET_ERROR == (ws32_result = select(n,r,w,e,t)) ? \
-	(errno = WSAGetLastError()), -1 : ws32_result)
+    (SOCKET_ERROR == (ws32_result = select(n,r,w,e,t)) ? \
+    (errno = WSAGetLastError()), -1 : ws32_result)
 #define socket(f,t,p) \
-	(INVALID_SOCKET == ((SOCKET)(ws32_result = (int)socket(f,t,p))) ? \
-	((WSAEMFILE == (errno = WSAGetLastError()) ? errno = EMFILE : -1), -1) : \
-	(SOCKET)_open_osfhandle(ws32_result,0))
+    (INVALID_SOCKET == ((SOCKET)(ws32_result = (int)socket(f,t,p))) ? \
+    ((WSAEMFILE == (errno = WSAGetLastError()) ? errno = EMFILE : -1), -1) : \
+    (SOCKET)_open_osfhandle(ws32_result,0))
 #define write      _write /* Needed in util.c */
 #define open       _open /* Needed in win32lib.c */
 #endif /* #ifdef __cplusplus */
@@ -810,26 +852,26 @@ WSASocket(int a, int t, int p, LPWSAPROTOCOL_INFO i, GROUP g, DWORD f)
 #if HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #else
-#define	RUSAGE_SELF	0		/* calling process */
-#define	RUSAGE_CHILDREN	-1		/* terminated child processes */
+#define RUSAGE_SELF 0       /* calling process */
+#define RUSAGE_CHILDREN -1      /* terminated child processes */
 
 struct rusage {
-    struct timeval ru_utime;	/* user time used */
-    struct timeval ru_stime;	/* system time used */
-    long ru_maxrss;			/* integral max resident set size */
-    long ru_ixrss;			/* integral shared text memory size */
-    long ru_idrss;			/* integral unshared data size */
-    long ru_isrss;			/* integral unshared stack size */
-    long ru_minflt;			/* page reclaims */
-    long ru_majflt;			/* page faults */
-    long ru_nswap;			/* swaps */
-    long ru_inblock;		/* block input operations */
-    long ru_oublock;		/* block output operations */
-    long ru_msgsnd;			/* messages sent */
-    long ru_msgrcv;			/* messages received */
-    long ru_nsignals;		/* signals received */
-    long ru_nvcsw;			/* voluntary context switches */
-    long ru_nivcsw;			/* involuntary context switches */
+    struct timeval ru_utime;    /* user time used */
+    struct timeval ru_stime;    /* system time used */
+    long ru_maxrss;         /* integral max resident set size */
+    long ru_ixrss;          /* integral shared text memory size */
+    long ru_idrss;          /* integral unshared data size */
+    long ru_isrss;          /* integral unshared stack size */
+    long ru_minflt;         /* page reclaims */
+    long ru_majflt;         /* page faults */
+    long ru_nswap;          /* swaps */
+    long ru_inblock;        /* block input operations */
+    long ru_oublock;        /* block output operations */
+    long ru_msgsnd;         /* messages sent */
+    long ru_msgrcv;         /* messages received */
+    long ru_nsignals;       /* signals received */
+    long ru_nvcsw;          /* voluntary context switches */
+    long ru_nivcsw;         /* involuntary context switches */
 };
 #endif /* HAVE_SYS_RESOURCE_H */
 
@@ -837,9 +879,6 @@ struct rusage {
 
 SQUIDCEXTERN int chroot(const char *dirname);
 SQUIDCEXTERN int kill(pid_t, int);
-#if !_SQUID_MINGW_
-SQUIDCEXTERN int statfs(const char *, struct statfs *);
-#endif
 SQUIDCEXTERN struct passwd * getpwnam(char *unused);
 SQUIDCEXTERN struct group * getgrnam(char *unused);
 
@@ -964,3 +1003,4 @@ void WIN32_maperror(unsigned long WIN32_oserrno);
 
 #endif /* _SQUID_WINDOWS_ */
 #endif /* SQUID_OS_MSWINDOWS_H */
+

@@ -1,4 +1,13 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
+#include "acl/Checklist.h"
 #include "acl/Tree.h"
 #include "wordlist.h"
 
@@ -48,28 +57,39 @@ Acl::Tree::add(ACL *rule)
     InnerNode::add(rule);
 }
 
-wordlist*
+SBufList
 Acl::Tree::treeDump(const char *prefix, const ActionToString &convert) const
 {
-    wordlist *text = NULL;
+    SBufList text;
     Actions::const_iterator action = actions.begin();
     typedef Nodes::const_iterator NCI;
     for (NCI node = nodes.begin(); node != nodes.end(); ++node) {
 
-        wordlistAdd(&text, prefix);
+        text.push_back(SBuf(prefix));
 
         if (action != actions.end()) {
             const char *act = convert ? convert[action->kind] :
                               (*action == ACCESS_ALLOWED ? "allow" : "deny");
-            wordlistAdd(&text, act ? act : "???");
+            text.push_back(act?SBuf(act):SBuf("???"));
             ++action;
         }
 
-        wordlist *rule = (*node)->dump();
-        wordlistAddWl(&text, rule);
-        wordlistDestroy(&rule);
-
-        wordlistAdd(&text, "\n");
+        // temp is needed until c++11 move constructor
+        SBufList temp = (*node)->dump();
+        text.splice(text.end(), temp);
+        text.push_back(SBuf("\n"));
     }
     return text;
 }
+
+bool
+Acl::Tree::bannedAction(ACLChecklist *checklist, Nodes::const_iterator node) const
+{
+    if (actions.size()) {
+        assert(actions.size() == nodes.size());
+        const Nodes::size_type pos = node - nodes.begin();
+        return checklist->bannedAction(actions.at(pos));
+    }
+    return false;
+}
+

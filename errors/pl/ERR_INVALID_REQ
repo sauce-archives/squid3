@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>BŁĄD: Żądany URL nie może zostać pobrany</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Nieprawidłowe zapytanie</b> wystąpił błąd podczas próby przetworzenia zapytania</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>Some possible problems are:</p>
@@ -31,10 +32,10 @@ body
 <li><p>RZbyt duży rozmiar żądania</p></li>
 <li><p>Brak pola Content-Length dla metod POST lub PUT</p></li>
 <li><p>Błędny znak w nazwie hosta; podkreślenia (underscores) są niedozwolone</p></li>
-<li><p></p></li>
+<li><p>HTTP/1.1 <q>Expect:</q> feature is being asked from an HTTP/1.0 software.</p></li>
 </ul>
 
-<p></p>
+<p>Your cache administrator is <a href="mailto:%w%W">%w</a>.</p>
 <br>
 </div>
 

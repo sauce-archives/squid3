@@ -1,47 +1,27 @@
 /*
- * Windows support
- * AUTHOR: Guido Serassio <serassio@squid-cache.org>
- * inspired by previous work by Romeo Anghelache & Eric Stern.
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
+/* Inspired by previous work by Romeo Anghelache & Eric Stern. */
+
 #include "squid.h"
-#include "win32.h"
 
 #if _SQUID_WINDOWS_
+
+#include "fde.h"
+#include "win32.h"
+
+#include <csignal>
 #if HAVE_WIN32_PSAPI
 #include <psapi.h>
 #endif
-#ifndef _MSWSOCK_
+#if HAVE_MSWSOCK_H
 #include <mswsock.h>
 #endif
-#include <fde.h>
 
 SQUIDCEXTERN LPCRITICAL_SECTION dbg_mutex;
 void WIN32_ExceptionHandlerCleanup(void);
@@ -73,7 +53,7 @@ LONG CALLBACK WIN32_ExceptionHandler(EXCEPTION_POINTERS* ep)
     case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
 
     case EXCEPTION_IN_PAGE_ERROR:
-        death(SIGBUS);
+        raise(SIGBUS);
         break;
 
     default:
@@ -100,3 +80,4 @@ void WIN32_ExceptionHandlerCleanup()
 }
 
 #endif /* SQUID_WINDOWS_ */
+

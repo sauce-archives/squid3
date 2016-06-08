@@ -1,11 +1,18 @@
 /*
- * DEBUG: section 14    IP Storage and Handling
- * AUTHOR: Amos Jeffries
- * COPYRIGHT: GPL version 2, (C)2007-2013 Treehouse Networks Ltd.
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 14    IP Storage and Handling */
+
 #ifndef _SQUID_SRC_IP_ADDRESS_H
 #define _SQUID_SRC_IP_ADDRESS_H
 
+#include <iosfwd>
+#include <ostream>
 #if HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
@@ -20,13 +27,6 @@
 #endif
 #if HAVE_NETDB_H
 #include <netdb.h>
-#endif
-
-#if HAVE_IOSFWD
-#include <iosfwd>
-#endif
-#if HAVE_OSTREAM
-#include <ostream>
 #endif
 
 namespace Ip
@@ -171,8 +171,8 @@ public:
 
     /** Require an IPv4-only address for this usage.
      *  Converts the object to prefer only IPv4 output.
-     \retval true	Content can be IPv4
-     \retval false	Content CANNOT be IPv4
+     \retval true   Content can be IPv4
+     \retval false  Content CANNOT be IPv4
      */
     bool setIPv4();
 
@@ -256,13 +256,13 @@ public:
      *  Get RFC 3493 addrinfo structure from the Ip::Address data
      *  for protocol-neutral socket operations.
      *  Should be passed a NULL pointer of type struct addrinfo* it will
-     *  allocate memory for the structures involved. (see FreeAddrInfo to clear).
+     *  allocate memory for the structures involved. (see FreeAddr() to clear).
      *  Defaults to a TCP streaming socket, if other values (such as UDP) are needed
      *  the caller MUST override these default settings.
      *  Some situations may also require an actual call to the system getaddrinfo()
      *  to pull relevant OS details for the socket.
      \par
-     *  Ip::Address allocated objects MUST be destructed by Ip::Address::FreeAddrInfo
+     *  Ip::Address allocated objects MUST be destructed by Ip::Address::FreeAddr
      *  System getaddrinfo() allocated objects MUST be freed with system freeaddrinfo()
      *
      \param ai structure to be filled out.
@@ -273,7 +273,7 @@ public:
     /**
      *  Equivalent to the sysem call freeaddrinfo() but for Ip::Address allocated data
      */
-    static void FreeAddrInfo(struct addrinfo *&ai);
+    static void FreeAddr(struct addrinfo *&ai);
 
     /**
      *  Initializes an empty addrinfo properly for use.
@@ -281,13 +281,13 @@ public:
      *  about to be changed and the stored details may not match the new ones coming.
      \param ai addrinfo struct to be initialized as AF_UNSPEC with large address buffer
      */
-    static void InitAddrInfo(struct addrinfo *&ai);
+    static void InitAddr(struct addrinfo *&ai);
 
     /**
      *  Lookup a Host by Name. Equivalent to system call gethostbyname(char*)
      \param s The textual FQDN of the host being located.
-     \retval true	lookup was successful and an IPA was located.
-     \retval false	lookup failed or FQDN has no IP associated.
+     \retval true   lookup was successful and an IPA was located.
+     \retval false  lookup failed or FQDN has no IP associated.
      */
     bool GetHostByName(const char *s);
 
@@ -365,3 +365,4 @@ public:
 void parse_IpAddress_list_token(Ip::Address_list **, char *);
 
 #endif /* _SQUID_SRC_IP_ADDRESS_H */
+

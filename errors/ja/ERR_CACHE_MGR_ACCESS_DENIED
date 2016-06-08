@@ -1,7 +1,8 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>エラー: キャッシュ・マネージャにアクセスを拒否されました。</title>
+<title>エラー: キャッシュマネージャへのアクセスを拒否されました。</title>
 <style type="text/css"><!-- 
  %l
 
@@ -12,18 +13,18 @@ body
 </head><body id="%c">
 <div id="titles">
 <h1>エラー</h1>
-<h2>キャッシュマネジャへのアクセスを拒否されました．</h2>
+<h2>キャッシュマネージャへのアクセスを拒否されました．</h2>
 </div>
 <hr>
 
 <div id="content">
-<p></p>
+<p>URL: <a href="%U">%U</a> の取得中に以下のエラーが発生しました。</p>
 
 <blockquote id="error">
-<p><b>キャッシュマネジャへのアクセスを拒否されました．</b></p>
+<p><b>キャッシュマネージャへのアクセスを拒否されました．</b></p>
 </blockquote>
 
-<p>申し訳ありませんが、あなた自身の認証を済ませるまで、このキャッシュマネージャに %U をリクエストすることは現在許可されていません。</p>
+<p>申し訳ありませんが、あなた自身を認証するまで、このキャッシュマネージャは %U の要求を許可しません。</p>
 
 <p>あなた自身の認証が困難な場合は、<a href="mailto:%w%W">キャッシュの管理者</a>に連絡してください。または、あなた<em>自身</em>が管理者なら、キャッシュマネージャ・インターフェイスのSquidの文書を読んで、キャッシュのログにある詳細なエラーメッセージを確認してください。</p>
 

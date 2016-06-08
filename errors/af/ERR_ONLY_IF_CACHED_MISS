@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Die aangevraagde URL kon nie verkry word nie</title>
 <style type="text/css"><!-- 
@@ -23,7 +24,7 @@ body
 <p><b>Geldige dokument is nie in die kas gevind nie, en <q>only-if-cached</q> is gespesifiseer.</b></p>
 </blockquote>
 
-<p></p>
+<p>You have issued a request with a <q>only-if-cached</q> cache control directive. The document was not found in the cache, <em>or</em> it required revalidation prohibited by the <q>only-if-cached</q> directive.</p>
 
 <p>Die kasbediener se administrateur is <a href="mailto:%w%W">%w</a>.</p>
 <br>

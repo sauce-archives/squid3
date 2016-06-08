@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERROR: ไม่สามารถเรียกดู URL ที่ได้รับการร้องขอ</title>
 <style type="text/css"><!-- 
@@ -11,16 +12,16 @@ body
  --></style>
 </head><body id="%c">
 <div id="titles">
-<h1></h1>
+<h1>ERROR</h1>
 <h2>ไม่สามารถเรียกดู URL ที่ได้รับการร้องขอ</h2>
 </div>
 <hr>
 
 <div id="content">
-<p></p>
+<p><b>Invalid Request</b> error was encountered while trying to process the request:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>ปัญหาที่เป็นไปได้อาจจะเป็น:</p>
@@ -30,8 +31,8 @@ body
 <li id="missing-protocol"><p>ไม่ได้ระบุชื่อตัวแแปร (identifier) ใน HTTP (HTTP/1.0)</p></li>
 <li><p>คำสั่งหรือคำร้อง (request) ที่ส่ง มีขนาดใหญ่เกินไป</p></li>
 <li><p>ไม่ได้ระบุ Content-Length ในการสั่ง POST หรือ PUT</p></li>
-<li><p></p></li>
-<li><p></p></li>
+<li><p>Illegal character in hostname; underscores are not allowed.</p></li>
+<li><p>HTTP/1.1 <q>Expect:</q> feature is being asked from an HTTP/1.0 software.</p></li>
 </ul>
 
 <p>ผู้ดูแลระบบแคชของคุณคือ <a href="mailto:%w%W">%w</a></p>
@@ -46,7 +47,7 @@ if ('%P' != '[unknown protocol]') document.getElementById('missing-protocol').st
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Generated %T by %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

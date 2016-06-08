@@ -1,4 +1,11 @@
-#include "squid.h"
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 // Author:  Jens-S. V?ckler <voeckler@rvs.uni-hannover.de>
 //
 // File:    socket.hh
@@ -41,15 +48,16 @@
 // Revision 1.1  1998/08/13 21:52:55  voeckler
 // Initial revision
 //
-//
+
+#include "squid.h"
 #include "socket.hh"
+
+#include <cerrno>
+#include <cstring>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
 #include <unistd.h>
 
 #include "convert.hh"
@@ -247,3 +255,4 @@ serverSocket( struct in_addr host, unsigned short port,
 
     return sockfd;
 }
+

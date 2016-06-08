@@ -1,17 +1,21 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef _SQUID_SSL_ERRORDETAILMANAGER_H
 #define _SQUID_SSL_ERRORDETAILMANAGER_H
 
 #include "base/RefCount.h"
 #include "HttpRequest.h"
-#include "ssl/support.h"
 #include "SquidString.h"
+#include "ssl/support.h"
 
-#if HAVE_MAP
 #include <map>
-#endif
-#if HAVE_STRING
 #include <string>
-#endif
 
 class HttpRequest;
 
@@ -91,3 +95,4 @@ void errorDetailInitialize();
 void errorDetailClean();
 } //namespace Ssl
 #endif
+

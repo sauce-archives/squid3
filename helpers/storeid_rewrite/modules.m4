@@ -1,11 +1,20 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 # This file is supposed to run all the tests required to identify which
 # configured modules are able to be built in this environment
 
 # FIXME: de-duplicate $enable_storeid_rewrite_helpers list containing double entries.
 
 #define list of modules to build
+auto_storeid_modules=no
 if test "x${enable_storeid_rewrite_helpers:=yes}" = "xyes" ; then
     SQUID_LOOK_FOR_MODULES([$srcdir/helpers/storeid_rewrite],[enable_storeid_rewrite_helpers])
+  auto_storeid_modules=yes
 fi
 
 enable_storeid_rewrite_helpers="`echo $enable_storeid_rewrite_helpers| sed -e 's/,/ /g;s/  */ /g'`"
@@ -27,7 +36,11 @@ if test "x$enable_storeid_rewrite_helpers" != "xno" ; then
 
     if test -d "$srcdir/helpers/storeid_rewrite/$helper"; then
       if test "$BUILD_HELPER" != "$helper"; then
-        AC_MSG_NOTICE([Store-ID rewrite helper $helper ... found but cannot be built])
+        if test "x$auto_storeid_modules" = "xyes"; then
+          AC_MSG_NOTICE([Store-ID rewrite helper $helper ... found but cannot be built])
+        else
+          AC_MSG_ERROR([Store-ID rewrite helper $helper ... found but cannot be built])
+        fi
       else
         STOREID_REWRITE_HELPERS="$STOREID_REWRITE_HELPERS $BUILD_HELPER"
       fi

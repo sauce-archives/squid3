@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERREUR : L'URL demandada a pas pogut èsser cargada</title>
 <style type="text/css"><!-- 
@@ -20,10 +21,10 @@ body
 <p>L'error seguenta s'es producha en ensajant d'accedir a l'URL : <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Valid document was not found in the cache and <q>only-if-cached</q> directive was specified.</b></p>
 </blockquote>
 
-<p></p>
+<p>You have issued a request with a <q>only-if-cached</q> cache control directive. The document was not found in the cache, <em>or</em> it required revalidation prohibited by the <q>only-if-cached</q> directive.</p>
 
 <p>Vòstre administrator d'amagatal es <a href="mailto:%w">%w</a>.</p>
 <br>

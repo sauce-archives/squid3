@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Toegang tot kasbestuur geweier.</title>
 <style type="text/css"><!-- 
@@ -23,9 +24,9 @@ body
 <p><b>Toegang tot kasbestuur geweier.</b></p>
 </blockquote>
 
-<p></p>
+<p>Sorry, you are not currently allowed to request %U from this cache manager until you have authenticated yourself.</p>
 
-<p></p>
+<p>Please contact the <a href="mailto:%w%W">cache administrator</a> if you have difficulties authenticating yourself or, if you <em>are</em> the administrator, read Squid documentation on cache manager interface and check cache log for more detailed error messages.</p>
 
 <br>
 </div>

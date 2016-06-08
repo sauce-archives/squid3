@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERRORE: non è possibile accedere alla URL richiesta</title>
 <style type="text/css"><!-- 
@@ -20,15 +21,15 @@ body
 <p>Mentre si cercava di accedere alla URL <a href="%U">%U</a> si è presentato il seguente errore:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>Conflitto nell'host della URI</pre>
 </blockquote>
 
-<p></p>
+<p>Questo significa che il nome di dominio che stai cercando di daggiungere non esiste più sul server da cui lo state richiedendo.</p>
 
 <p>Alcuni dei possibili problemi sono:</p>
 <ul>
-<li></li>
-<li></li>
+<li>Questo dominio potrebbe essere stato spostato molto di recente. Un nuovo tentativo dovrebbe risolvere la situazione.</li>
+<li>Il sito web potrebbe richiedere di usare una versione localizzata. Facendo riferimento ai server DNS forniti dal vostro ISP dovrebbe risolvere l'inconveniente.</li>
 </ul>
 
 <p>L'amministratore del proxy è <a href="mailto:%w%W">%w</a>.</p>
@@ -37,7 +38,7 @@ body
 
 <hr>
 <div id="footer">
-<p>Generato da %h (%s) il %T.</p>
+<p>Generato da %h (%s) il %T</p>
 <!-- %c -->
 </div>
 </body></html>

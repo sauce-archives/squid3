@@ -1,46 +1,21 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
 
 /*
  * DEBUG: section 63    Low Level Memory Pool Management
  * AUTHOR: Alex Rousskov, Andres Kroonmaa, Robert Collins, Henrik Nordstrom
- *
- * SQUID Internet Object Cache  http://squid.nlanr.net/Squid/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from the
- *  Internet community.  Development is led by Duane Wessels of the
- *  National Laboratory for Applied Network Research and funded by the
- *  National Science Foundation.  Squid is Copyrighted (C) 1998 by
- *  the Regents of the University of California.  Please see the
- *  COPYRIGHT file for full details.  Squid incorporates software
- *  developed and/or copyrighted by other sources.  Please see the
- *  CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
  */
 
 #include "squid.h"
-#if HAVE_ASSERT_H
-#include <assert.h>
-#endif
-
 #include "MemPoolMalloc.h"
 
-#if HAVE_STRING_H
-#include <string.h>
-#endif
+#include <cassert>
+#include <cstring>
 
 /*
  * XXX This is a boundary violation between lib and src.. would be good
@@ -51,7 +26,11 @@ extern time_t squid_curtime;
 void *
 MemPoolMalloc::allocate()
 {
-    void *obj = freelist.pop();
+    void *obj = NULL;
+    if (!freelist.empty()) {
+        obj = freelist.top();
+        freelist.pop();
+    }
     if (obj) {
         memMeterDec(meter.idle);
         ++saved_calls;
@@ -77,7 +56,7 @@ MemPoolMalloc::deallocate(void *obj, bool aggressive)
         if (doZero)
             memset(obj, 0, obj_size);
         memMeterInc(meter.idle);
-        freelist.push_back(obj);
+        freelist.push(obj);
     }
 }
 
@@ -85,7 +64,7 @@ MemPoolMalloc::deallocate(void *obj, bool aggressive)
 int
 MemPoolMalloc::getStats(MemPoolStats * stats, int accumulate)
 {
-    if (!accumulate)	/* need skip memset for GlobalStats accumulation */
+    if (!accumulate)    /* need skip memset for GlobalStats accumulation */
         memset(stats, 0, sizeof(MemPoolStats));
 
     stats->pool = this;
@@ -127,13 +106,15 @@ MemPoolMalloc::~MemPoolMalloc()
 bool
 MemPoolMalloc::idleTrigger(int shift) const
 {
-    return freelist.count >> (shift ? 8 : 0);
+    return freelist.size() >> (shift ? 8 : 0);
 }
 
 void
 MemPoolMalloc::clean(time_t maxage)
 {
-    while (void *obj = freelist.pop()) {
+    while (!freelist.empty()) {
+        void *obj = freelist.top();
+        freelist.pop();
         memMeterDec(meter.idle);
         memMeterDec(meter.alloc);
         xfree(obj);

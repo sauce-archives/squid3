@@ -1,4 +1,9 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #ifndef SQUID_IPC_MEM_FLEXIBLE_ARRAY_H
@@ -23,7 +28,7 @@ class FlexibleArray
 public:
     explicit FlexibleArray(const int capacity) {
         if (capacity > 1) // the first item is initialized automatically
-            new (items+1) Item[capacity-1];
+            new (raw()+1) Item[capacity-1];
     }
 
     Item &operator [](const int idx) { return items[idx]; }
@@ -43,3 +48,4 @@ private:
 } // namespace Ipc
 
 #endif /* SQUID_IPC_MEM_FLEXIBLE_ARRAY_H */
+

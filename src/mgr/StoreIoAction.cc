@@ -1,7 +1,12 @@
 /*
- * DEBUG: section 16    Cache Manager API
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 16    Cache Manager API */
 
 #include "squid.h"
 #include "base/TextException.h"
@@ -34,7 +39,7 @@ Mgr::StoreIoAction::Create(const CommandPointer &cmd)
 }
 
 Mgr::StoreIoAction::StoreIoAction(const CommandPointer &aCmd):
-        Action(aCmd), data()
+    Action(aCmd), data()
 {
     debugs(16, 5, HERE);
 }
@@ -80,3 +85,4 @@ Mgr::StoreIoAction::unpack(const Ipc::TypedMsgHdr& msg)
     msg.checkType(Ipc::mtCacheMgrResponse);
     msg.getPod(data);
 }
+

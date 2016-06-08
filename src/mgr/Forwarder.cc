@@ -1,13 +1,18 @@
 /*
- * DEBUG: section 16    Cache Manager API
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 16    Cache Manager API */
 
 #include "squid.h"
 #include "base/AsyncJobCalls.h"
 #include "base/TextException.h"
-#include "CommCalls.h"
 #include "comm/Connection.h"
+#include "CommCalls.h"
 #include "errorpage.h"
 #include "globals.h"
 #include "HttpReply.h"
@@ -22,8 +27,8 @@ CBDATA_NAMESPACED_CLASS_INIT(Mgr, Forwarder);
 
 Mgr::Forwarder::Forwarder(const Comm::ConnectionPointer &aConn, const ActionParams &aParams,
                           HttpRequest* aRequest, StoreEntry* anEntry):
-        Ipc::Forwarder(new Request(KidIdentifier, 0, aConn, aParams), 10),
-        httpRequest(aRequest), entry(anEntry), conn(aConn)
+    Ipc::Forwarder(new Request(KidIdentifier, 0, aConn, aParams), 10),
+    httpRequest(aRequest), entry(anEntry), conn(aConn)
 {
     debugs(16, 5, HERE << conn);
     Must(Comm::IsConnOpen(conn));
@@ -31,7 +36,7 @@ Mgr::Forwarder::Forwarder(const Comm::ConnectionPointer &aConn, const ActionPara
     Must(entry != NULL);
 
     HTTPMSGLOCK(httpRequest);
-    entry->lock();
+    entry->lock("Mgr::Forwarder");
     EBIT_SET(entry->flags, ENTRY_FWD_HDR_WAIT);
 
     closer = asyncCall(16, 5, "Mgr::Forwarder::noteCommClosed",
@@ -47,7 +52,7 @@ Mgr::Forwarder::~Forwarder()
 
     HTTPMSGUNLOCK(httpRequest);
     entry->unregisterAbort();
-    entry->unlock();
+    entry->unlock("Mgr::Forwarder");
     cleanup();
 }
 
@@ -125,3 +130,4 @@ Mgr::Forwarder::sendError(ErrorState *error)
     entry->flush();
     entry->complete();
 }
+

@@ -1,15 +1,27 @@
 /*
- * Compatibility-layer for CMSG_
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
 #ifndef SQUID_COMPAT_CMSG_H
 #define SQUID_COMPAT_CMSG_H
+
+/*
+ * Compatibility-layer for CMSG_
+ */
 
 // cmsg.h is found through sys/socket.h
 #if HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
 
-// WinSock2.h defines these for Windows
+// mswsock.h defines WSA_CMSG definitions
+#if HAVE_MSWSOCK_H
+#include <mswsock.h>
+#endif
 #if HAVE_WINSOCK2_H
 #include <winsock2.h>
 #endif
@@ -30,12 +42,17 @@ struct cmsghdr {
 #endif
 
 /* lifted off https://metacpan.org/source/SAMPO/Socket-PassAccessRights-0.03/passfd.c */
-#ifndef CMSG_DATA
-# define CMSG_DATA(cmsg) ((cmsg)->cmsg_data)
+// check for WSA_CMSG first because Windows defines CMSG_DATA for other uses
+#if defined(WSA_CMSG_DATA)
+# define SQUID_CMSG_DATA(cmsg) WSA_CMSG_DATA(cmsg)
+#elif defined(CMSG_DATA)
+# define SQUID_CMSG_DATA(cmsg) CMSG_DATA(cmsg)
+#else
+# define SQUID_CMSG_DATA(cmsg) ((cmsg)->cmsg_data)
 #endif
 
 #ifndef CMSG_NXTHDR
-# define CMSG_NXTHDR(mhdr, cmsg) __cmsg_nxthdr (mhdr, cmsg)
+# define CMSG_NXTHDR(mhdr, X) __cmsg_nxthdr (mhdr, X)
 #endif
 
 #ifndef CMSG_FIRSTHDR
@@ -123,3 +140,4 @@ struct sockaddr_un {
 #endif
 
 #endif /* SQUID_COMPAT_CMSG_H */
+

@@ -1,42 +1,18 @@
 /*
- * DEBUG: section 28    Access Control
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- *
- * Copyright (c) 2003, Robert Collins <robertc@squid-cache.org>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 28    Access Control */
 
 #include "squid.h"
 #include "acl/CertificateData.h"
 #include "acl/Checklist.h"
-#include "Debug.h"
 #include "cache_cf.h"
+#include "Debug.h"
 #include "wordlist.h"
 
 ACLCertificateData::ACLCertificateData(Ssl::GETX509ATTRIBUTE *sslStrategy, const char *attrs, bool optionalAttr) : validAttributesStr(attrs), attributeIsOptional(optionalAttr), attribute (NULL), values (), sslAttributeCall (sslStrategy)
@@ -59,7 +35,7 @@ ACLCertificateData::ACLCertificateData(ACLCertificateData const &old) : attribut
     validAttributes.assign (old.validAttributes.begin(), old.validAttributes.end());
     attributeIsOptional = old.attributeIsOptional;
     if (old.attribute)
-        attribute = xstrdup (old.attribute);
+        attribute = xstrdup(old.attribute);
 }
 
 template<class T>
@@ -95,26 +71,21 @@ ACLCertificateData::match(X509 *cert)
     return values.match(value);
 }
 
-static void
-aclDumpAttributeListWalkee(char * const & node_data, void *outlist)
+SBufList
+ACLCertificateData::dump() const
 {
-    /* outlist is really a wordlist ** */
-    wordlistAdd((wordlist **)outlist, node_data);
-}
-
-wordlist *
-ACLCertificateData::dump()
-{
-    wordlist *wl = NULL;
+    SBufList sl;
     if (validAttributesStr)
-        wordlistAdd(&wl, attribute);
-    /* damn this is VERY inefficient for long ACL lists... filling
-     * a wordlist this way costs Sum(1,N) iterations. For instance
-     * a 1000-elements list will be filled in 499500 iterations.
-     */
-    /* XXX FIXME: don't break abstraction */
-    values.values->walk(aclDumpAttributeListWalkee, &wl);
-    return wl;
+        sl.push_back(SBuf(attribute));
+
+#if __cplusplus >= 201103L
+    sl.splice(sl.end(),values.dump());
+#else
+    // temp is needed until c++11 move constructor
+    SBufList tmp = values.dump();
+    sl.splice(sl.end(),tmp);
+#endif
+    return sl;
 }
 
 void
@@ -155,8 +126,29 @@ ACLCertificateData::parse()
                     debugs(28, DBG_CRITICAL, "FATAL: An acl must use consistent attributes in all config lines (" << newAttribute << "!=" << attribute << ").");
                     self_destruct();
                 }
-            } else
+            } else {
+                if (strcasecmp(newAttribute, "DN") != 0) {
+                    int nid = OBJ_txt2nid(newAttribute);
+                    if (nid == 0) {
+                        const size_t span = strspn(newAttribute, "0123456789.");
+                        if(newAttribute[span] == '\0') { // looks like a numerical OID
+                            // create a new object based on this attribute
+
+                            // NOTE: Not a [bad] leak: If the same attribute
+                            // has been added before, the OBJ_txt2nid call
+                            // would return a valid nid value.
+                            // TODO: call OBJ_cleanup() on reconfigure?
+                            nid = OBJ_create(newAttribute, newAttribute,  newAttribute);
+                            debugs(28, 7, "New SSL certificate attribute created with name: " << newAttribute << " and nid: " << nid);
+                        }
+                    }
+                    if (nid == 0) {
+                        debugs(28, DBG_CRITICAL, "FATAL: Not valid SSL certificate attribute name or numerical OID: " << newAttribute);
+                        self_destruct();
+                    }
+                }
                 attribute = xstrdup(newAttribute);
+            }
         }
     }
 
@@ -175,3 +167,4 @@ ACLCertificateData::clone() const
     /* Splay trees don't clone yet. */
     return new ACLCertificateData(*this);
 }
+

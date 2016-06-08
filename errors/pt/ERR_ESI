@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERRO: A URL solicitada não pode ser recuperada</title>
 <style type="text/css"><!-- 
@@ -17,26 +18,26 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>The following error was encountered while trying to retrieve the URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>O Processamento do ESI falhou.</b></p>
 </blockquote>
 
-<p></p>
+<p>The ESI processor returned:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%Z</pre>
 </blockquote>
 
-<p></p>
+<p>This means that the surrogate was not able to process the ESI template. Please report this error to the webmaster.</p>
 
-<p></p>
+<p>Seu webmaster é <a href="mailto:%w">%w</a>.</p>
 <br>
 </div>
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Gerado %T por %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

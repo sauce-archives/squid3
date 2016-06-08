@@ -1,11 +1,19 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ADAPTATION__CONFIG_H
 #define SQUID_ADAPTATION__CONFIG_H
 
-#include "event.h"
 #include "acl/forward.h"
-#include "base/AsyncCall.h"
-#include "adaptation/forward.h"
 #include "adaptation/Elements.h"
+#include "adaptation/forward.h"
+#include "base/AsyncCall.h"
+#include "event.h"
 #include "Notes.h"
 #include "SquidString.h"
 
@@ -49,7 +57,9 @@ public:
 
     static Notes metaHeaders; ///< The list of configured meta headers
 
-    typedef Vector<ServiceConfigPointer> ServiceConfigs;
+    static bool needHistory; ///< HttpRequest adaptation history should recorded
+
+    typedef std::vector<ServiceConfigPointer> ServiceConfigs;
     ServiceConfigs serviceConfigs;
 
     Config();
@@ -58,7 +68,7 @@ public:
     void parseService(void);
     void freeService(void);
     void dumpService(StoreEntry *, const char *) const;
-    ServicePointer findService(const String&);
+    ServiceConfigPointer findServiceConfig(const String&);
 
     /**
      * Creates and starts the adaptation services. In the case the adaptation
@@ -95,3 +105,4 @@ private:
 } // namespace Adaptation
 
 #endif /* SQUID_ADAPTATION__CONFIG_H */
+

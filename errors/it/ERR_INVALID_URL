@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERRORE: non è possibile accedere alla URL richiesta</title>
 <style type="text/css"><!-- 
@@ -23,13 +24,13 @@ body
 <p><b>URL non valida</b></p>
 </blockquote>
 
-<p>Qualcosa nella URL richiesta non è corretto.</p>
+<p>Qualche elemento della URL richiesta non è corretto.</p>
 
 <p>Alcuni dei possibili problemi sono:</p>
 <ul>
-<li><p>Protocollo di accesso mancante o non corretto (dovrebbe essere <q>http://</q> o simile).</p></li>
-<li><p>Nome host non specificato.</p></li>
-<li><p>Doppia codifica ("double-escape") non valida nella path della URL.</p></li>
+<li><p>Protocollo di accesso mancante o non corretto (dovrebbe essere <q>http://</q> o simile)</p></li>
+<li><p>Nome host non specificato</p></li>
+<li><p>Doppia codifica ("double-escape") non valida nella path della URL</p></li>
 <li><p>Nome host non valido: i caratteri underscore ("_") non sono consentiti.</p></li>
 </ul>
 
@@ -39,7 +40,7 @@ body
 
 <hr>
 <div id="footer">
-<p>Generato da %h (%s) il %T.</p>
+<p>Generato da %h (%s) il %T</p>
 <!-- %c -->
 </div>
 </body></html>

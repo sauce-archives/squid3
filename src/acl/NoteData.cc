@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "acl/Acl.h"
 #include "acl/Checklist.h"
@@ -29,7 +37,7 @@ ACLNoteData::matchNotes(NotePairs *note)
     if (values->empty())
         return (note->findFirst(name.termedBuf()) != NULL);
 
-    for (Vector<NotePairs::Entry *>::iterator i = note->entries.begin(); i!= note->entries.end(); ++i) {
+    for (std::vector<NotePairs::Entry *>::iterator i = note->entries.begin(); i!= note->entries.end(); ++i) {
         if ((*i)->name.cmp(name.termedBuf()) == 0) {
             if (values->match((*i)->value.termedBuf()))
                 return true;
@@ -51,15 +59,19 @@ ACLNoteData::match(HttpRequest *request)
     return false;
 }
 
-wordlist *
-ACLNoteData::dump()
+SBufList
+ACLNoteData::dump() const
 {
-    wordlist *W = NULL;
-    wordlistAdd(&W, name.termedBuf());
-    wordlist * dumpR = values->dump();
-    wordlistAddWl(&W, dumpR);
-    wordlistDestroy(&dumpR);
-    return W;
+    SBufList sl;
+    sl.push_back(SBuf(name));
+#if __cplusplus >= 201103L
+    sl.splice(sl.end(), values->dump());
+#else
+    // temp is needed until c++11 move constructor
+    SBufList temp = values->dump();
+    sl.splice(sl.end(), temp);
+#endif
+    return sl;
 }
 
 void
@@ -74,7 +86,7 @@ ACLNoteData::parse()
 bool
 ACLNoteData::empty() const
 {
-    return name.undefined();
+    return name.size() == 0;
 }
 
 ACLData<HttpRequest *> *
@@ -85,3 +97,4 @@ ACLNoteData::clone() const
     result->name = name;
     return result;
 }
+

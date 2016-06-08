@@ -1,35 +1,12 @@
 /*
- * DEBUG: section 73    HTTP Request
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- * Copyright (c) 2003, Robert Collins <robertc@squid-cache.org>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 73    HTTP Request */
 
 #include "squid.h"
 #include "AccessLogEntry.h"
@@ -58,13 +35,13 @@
 #endif
 
 HttpRequest::HttpRequest() :
-        HttpMsg(hoRequest)
+    HttpMsg(hoRequest)
 {
     init();
 }
 
 HttpRequest::HttpRequest(const HttpRequestMethod& aMethod, AnyP::ProtocolType aProtocol, const char *aUrlpath) :
-        HttpMsg(hoRequest)
+    HttpMsg(hoRequest)
 {
     static unsigned int id = 1;
     debugs(93,7, HERE << "constructed, this=" << this << " id=" << ++id);
@@ -82,7 +59,7 @@ void
 HttpRequest::initHTTP(const HttpRequestMethod& aMethod, AnyP::ProtocolType aProtocol, const char *aUrlpath)
 {
     method = aMethod;
-    protocol = aProtocol;
+    url.setScheme(aProtocol);
     urlpath = aUrlpath;
 }
 
@@ -90,7 +67,7 @@ void
 HttpRequest::init()
 {
     method = Http::METHOD_NONE;
-    protocol = AnyP::PROTO_NONE;
+    url.clear();
     urlpath = NULL;
     login[0] = '\0';
     host[0] = '\0';
@@ -112,10 +89,10 @@ HttpRequest::init()
     dnsWait = -1;
     errType = ERR_NONE;
     errDetail = ERR_DETAIL_NONE;
-    peer_login = NULL;		// not allocated/deallocated by this class
-    peer_domain = NULL;		// not allocated/deallocated by this class
+    peer_login = NULL;      // not allocated/deallocated by this class
+    peer_domain = NULL;     // not allocated/deallocated by this class
     peer_host = NULL;
-    vary_headers = NULL;
+    vary_headers = SBuf();
     myportname = null_string;
     tag = null_string;
 #if USE_AUTH
@@ -147,9 +124,8 @@ HttpRequest::clean()
     auth_user_request = NULL;
 #endif
     safe_free(canonical);
-
-    safe_free(vary_headers);
-
+    vary_headers.clear();
+    url.clear();
     urlpath.clean();
 
     header.clean();
@@ -197,7 +173,7 @@ HttpRequest::reset()
 HttpRequest *
 HttpRequest::clone() const
 {
-    HttpRequest *copy = new HttpRequest(method, protocol, urlpath.termedBuf());
+    HttpRequest *copy = new HttpRequest(method, url.getScheme(), urlpath.termedBuf());
     // TODO: move common cloning clone to Msg::copyTo() or copy ctor
     copy->header.append(&header);
     copy->hdrCacheInit();
@@ -225,7 +201,7 @@ HttpRequest::clone() const
 
     copy->lastmod = lastmod;
     copy->etag = etag;
-    copy->vary_headers = vary_headers ? xstrdup(vary_headers) : NULL;
+    copy->vary_headers = vary_headers;
     // XXX: what to do with copy->peer_domain?
 
     copy->tag = tag;
@@ -391,8 +367,8 @@ HttpRequest::pack(Packer * p)
 {
     assert(p);
     /* pack request-line */
-    packerPrintf(p, "%s " SQUIDSTRINGPH " HTTP/%d.%d\r\n",
-                 RequestMethodStr(method), SQUIDSTRINGPRINT(urlpath),
+    packerPrintf(p, SQUIDSBUFPH " " SQUIDSTRINGPH " HTTP/%d.%d\r\n",
+                 SQUIDSBUFPRINT(method.image()), SQUIDSTRINGPRINT(urlpath),
                  http_ver.major, http_ver.minor);
     /* headers */
     header.packInto(p);
@@ -414,7 +390,7 @@ httpRequestPack(void *obj, Packer *p)
 int
 HttpRequest::prefixLen()
 {
-    return strlen(RequestMethodStr(method)) + 1 +
+    return method.image().length() + 1 +
            urlpath.size() + 1 +
            4 + 1 + 3 + 2 +
            header.len + 2;
@@ -479,7 +455,7 @@ HttpRequest::adaptHistoryImport(const HttpRequest &them)
 bool
 HttpRequest::multipartRangeRequest() const
 {
-    return (range && range->specs.count > 1);
+    return (range && range->specs.size() > 1);
 }
 
 bool
@@ -524,8 +500,8 @@ const char *HttpRequest::packableURI(bool full_uri) const
 void HttpRequest::packFirstLineInto(Packer * p, bool full_uri) const
 {
     // form HTTP request-line
-    packerPrintf(p, "%s %s HTTP/%d.%d\r\n",
-                 RequestMethodStr(method),
+    packerPrintf(p, SQUIDSBUFPH " %s HTTP/%d.%d\r\n",
+                 SQUIDSBUFPRINT(method.image()),
                  packableURI(full_uri),
                  http_ver.major, http_ver.minor);
 }
@@ -594,7 +570,7 @@ HttpRequest::maybeCacheable()
     if (!flags.hostVerified && (flags.intercepted || flags.interceptTproxy))
         return false;
 
-    switch (protocol) {
+    switch (url.getScheme()) {
     case AnyP::PROTO_HTTP:
     case AnyP::PROTO_HTTPS:
         if (!method.respMaybeCacheable())
@@ -612,7 +588,7 @@ HttpRequest::maybeCacheable()
     case AnyP::PROTO_CACHE_OBJECT:
         return false;
 
-        //case AnyP::PROTO_FTP:
+    //case AnyP::PROTO_FTP:
     default:
         break;
     }
@@ -712,3 +688,4 @@ HttpRequest::storeId()
 
     return urlCanonical(this);
 }
+

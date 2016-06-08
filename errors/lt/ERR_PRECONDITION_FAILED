@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>KLAIDA: Puslapis nurodytu adresu negali būti atsiųstas</title>
 <style type="text/css"><!-- 
@@ -17,15 +18,15 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>The following error was encountered while trying to retrieve the URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Precondition Failed.</b></p>
 </blockquote>
 
-<p></p>
+<p>This means:</p>
 <blockquote>
-    <p></p>
+    <p>At least one precondition specified by the HTTP client in the request header has failed.</p>
 </blockquote>
 
 <br>
@@ -33,7 +34,7 @@ body
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Generated %T by %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

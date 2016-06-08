@@ -1,5 +1,15 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_SRC_HTTP_METHODTYPE_H
 #define SQUID_SRC_HTTP_METHODTYPE_H
+
+#include "SBuf.h"
 
 namespace Http
 {
@@ -11,12 +21,6 @@ namespace Http
 typedef enum _method_t {
     METHOD_NONE = 0,
 
-#if NO_SPECIAL_HANDLING
-    // RFC 2068
-    METHOD_LINK,
-    METHOD_UNLINK,
-#endif
-
     // RFC 2616 (HTTP)
     METHOD_GET,
     METHOD_POST,
@@ -26,6 +30,12 @@ typedef enum _method_t {
     METHOD_TRACE,
     METHOD_OPTIONS,
     METHOD_DELETE,
+
+#if NO_SPECIAL_HANDLING
+    // RFC 2068
+    METHOD_LINK,
+    METHOD_UNLINK,
+#endif
 
     // RFC 3253
     METHOD_CHECKOUT,
@@ -77,20 +87,24 @@ typedef enum _method_t {
     METHOD_UNBIND,
 #endif
 
+    // RFC 7540
+    METHOD_PRI,
+
     // Squid extension methods
     METHOD_PURGE,
     METHOD_OTHER,
     METHOD_ENUM_END  // MUST be last, (yuck) this is used as an array-initialization index constant!
 } MethodType;
 
-extern const char *MethodType_str[];
+extern const SBuf MethodType_sb[];
 
-inline const char*
+inline const SBuf &
 MethodStr(const MethodType m)
 {
-    return MethodType_str[m];
+    return MethodType_sb[m];
 }
 
 }; // namespace Http
 
 #endif /* SQUID_SRC_HTTP_METHODTYPE_H */
+

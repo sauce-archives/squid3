@@ -1,23 +1,21 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "helpers/defines.h"
-#include "ssl/crtd_message.h"
 #include "ssl/certificate_db.h"
+#include "ssl/crtd_message.h"
 
-#if HAVE_CSTRING
 #include <cstring>
-#endif
-#if HAVE_SSTREAM
-#include <sstream>
-#endif
-#if HAVE_IOSTREAM
 #include <iostream>
-#endif
-#if HAVE_STDEXCEPT
+#include <sstream>
 #include <stdexcept>
-#endif
-#if HAVE_STRING
 #include <string>
-#endif
 #if HAVE_GETOPT_H
 #include <getopt.h>
 #endif
@@ -26,8 +24,8 @@
  \defgroup ssl_crtd ssl_crtd
  \ingroup ExternalPrograms
  \par
-    Because the standart generation of ssl certificate for
-    sslBump feature, Squid must use external proccess to
+    Because the standard generation of ssl certificate for
+    sslBump feature, Squid must use external process to
     actually make these calls. This process generate new ssl
     certificates and worked with ssl certificates disk cache.
     Typically there will be five ssl_crtd processes spawned
@@ -190,11 +188,8 @@ static void usage()
     std::cerr << help_string << std::endl;
 }
 
-/**
- \ingroup ssl_crtd
- * Proccess new request message.
- */
-static bool proccessNewRequest(Ssl::CrtdMessage & request_message, std::string const & db_path, size_t max_db_size, size_t fs_block_size)
+/// Process new request message.
+static bool processNewRequest(Ssl::CrtdMessage & request_message, std::string const & db_path, size_t max_db_size, size_t fs_block_size)
 {
     Ssl::CertificateProperties certProperties;
     std::string error;
@@ -207,7 +202,13 @@ static bool proccessNewRequest(Ssl::CrtdMessage & request_message, std::string c
     Ssl::EVP_PKEY_Pointer pkey;
     std::string &cert_subject = certProperties.dbKey();
 
-    db.find(cert_subject, cert, pkey);
+    bool dbFailed = false;
+    try {
+        db.find(cert_subject, cert, pkey);
+    } catch (std::runtime_error &err) {
+        dbFailed = true;
+        error = err.what();
+    }
 
     if (cert.get()) {
         if (!Ssl::certificateMatchesProperties(cert.get(), certProperties)) {
@@ -223,9 +224,21 @@ static bool proccessNewRequest(Ssl::CrtdMessage & request_message, std::string c
         if (!Ssl::generateSslCertificate(cert, pkey, certProperties))
             throw std::runtime_error("Cannot create ssl certificate or private key.");
 
-        if (!db.addCertAndPrivateKey(cert, pkey, cert_subject) && db.IsEnabledDiskStore())
-            throw std::runtime_error("Cannot add certificate to db.");
+        if (!dbFailed && db.IsEnabledDiskStore()) {
+            try {
+                if (!db.addCertAndPrivateKey(cert, pkey, cert_subject)) {
+                    dbFailed = true;
+                    error = "Cannot add certificate to db.";
+                }
+            } catch (const std::runtime_error &err) {
+                dbFailed = true;
+                error = err.what();
+            }
+        }
     }
+
+    if (dbFailed)
+        std::cerr << "ssl_crtd helper database '" << db_path  << "' failed: " << error << std::endl;
 
     std::string bufferToWrite;
     if (!Ssl::writeCertAndPrivateKeyToMemory(cert, pkey, bufferToWrite))
@@ -249,11 +262,11 @@ int main(int argc, char *argv[])
 {
     try {
         size_t max_db_size = 0;
-        size_t fs_block_size = 2048;
+        size_t fs_block_size = 0;
         int8_t c;
         bool create_new_db = false;
         std::string db_path;
-        // proccess options.
+        // process options.
         while ((c = getopt(argc, argv, "dcghvs:M:b:n:")) != -1) {
             switch (c) {
             case 'd':
@@ -294,10 +307,26 @@ int main(int argc, char *argv[])
             exit(0);
         }
 
-        {
-            Ssl::CertificateDb::check(db_path, max_db_size);
+        if (fs_block_size == 0) {
+            struct statvfs sfs;
+
+            if (xstatvfs(db_path.c_str(), &sfs)) {
+                fs_block_size = 2048;
+            } else {
+                fs_block_size = sfs.f_frsize;
+                // Sanity check; make sure we have a meaningful value.
+                if (fs_block_size < 512)
+                    fs_block_size = 2048;
+            }
         }
-        // proccess request.
+
+        {
+            Ssl::CertificateDb::check(db_path, max_db_size, fs_block_size);
+        }
+        // Initialize SSL subsystem
+        SSL_load_error_strings();
+        SSLeay_add_ssl_algorithms();
+        // process request.
         for (;;) {
             char request[HELPER_INPUT_BUFFER];
             Ssl::CrtdMessage request_message(Ssl::CrtdMessage::REQUEST);
@@ -313,7 +342,7 @@ int main(int argc, char *argv[])
             if (parse_result == Ssl::CrtdMessage::ERROR) {
                 throw std::runtime_error("Cannot parse request message.");
             } else if (request_message.getCode() == Ssl::CrtdMessage::code_new_certificate) {
-                proccessNewRequest(request_message, db_path, max_db_size, fs_block_size);
+                processNewRequest(request_message, db_path, max_db_size, fs_block_size);
             } else {
                 throw std::runtime_error("Unknown request code: \"" + request_message.getCode() + "\".");
             }
@@ -325,3 +354,4 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
+

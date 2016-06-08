@@ -1,4 +1,12 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
   NT_auth -  Version 2.0
 
   Returns OK for a successful authentication, or ERR upon error.
@@ -12,7 +20,7 @@
     Bill Welliver 1999
 
  * Distributed freely under the terms of the GNU General Public License,
- * version 2. See the file COPYING for licensing details
+ * version 2 or later. See the file COPYING for licensing details
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -30,9 +38,6 @@
 #include "util.h"
 #include "valid.h"
 
-#if HAVE_STDIO_H
-#include <stdio.h>
-#endif
 #if GETOPT_H
 #include <getopt.h>
 #endif
@@ -95,7 +100,7 @@ process_options(int argc, char *argv[])
             exit(0);
         case '?':
             opt = optopt;
-            /* fall thru to default */
+        /* fall thru to default */
         default:
             fprintf(stderr, "FATAL: Unknown option: -%c\n", opt);
             usage(argv[0]);
@@ -144,13 +149,13 @@ main(int argc, char **argv)
         }
 
         if ((p = strchr(wstr, '\n')) != NULL)
-            *p = '\0';		/* strip \n */
+            *p = '\0';      /* strip \n */
         if ((p = strchr(wstr, '\r')) != NULL)
-            *p = '\0';		/* strip \r */
+            *p = '\0';      /* strip \r */
         /* Clear any current settings */
         username[0] = '\0';
         password[0] = '\0';
-        sscanf(wstr, "%s %s", username, password);	/* Extract parameters */
+        sscanf(wstr, "%s %s", username, password);  /* Extract parameters */
 
         debug("Got %s from Squid\n", wstr);
 
@@ -174,3 +179,4 @@ main(int argc, char **argv)
     }
     return 0;
 }
+

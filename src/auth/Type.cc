@@ -6,7 +6,7 @@
 namespace Auth
 {
 
-const char *Type_str[] = {
+const char * Type_str[] = {
 	"AUTH_UNKNOWN",
 	"AUTH_BASIC",
 	"AUTH_NTLM",

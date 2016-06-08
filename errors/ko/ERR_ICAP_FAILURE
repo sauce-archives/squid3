@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>에러: 요청된 URL을 가져올 수 없습니다</title>
 <style type="text/css"><!-- 
@@ -17,20 +18,20 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>The following error was encountered while trying to retrieve the URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>ICAP protocol error.</b></p>
 </blockquote>
 
 <p id="sysmsg">시스템은 아래와 같은 메시지를 보내왔습니다: <i>%E</i></p>
 
-<p></p>
+<p>This means that some aspect of the ICAP communication failed.</p>
 
-<p></p>
+<p>Some possible problems are:</p>
 <ul>
-<li><p></p></li>
-<li><p></p></li>
+<li><p>The ICAP server is not reachable.</p></li>
+<li><p>An Illegal response was received from the ICAP server.</p></li>
 </ul>
 
 <br>
@@ -38,7 +39,7 @@ body
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Generated %T by %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

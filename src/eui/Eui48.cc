@@ -1,36 +1,12 @@
 /*
- * DEBUG: section 89    EUI-48 Lookup
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- *
- * Copyright (c) 2003, Robert Collins <robertc@squid-cache.org>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 89    EUI-48 Lookup */
 
 #include "squid.h"
 
@@ -41,9 +17,7 @@
 #include "globals.h"
 #include "ip/Address.h"
 
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
+#include <cerrno>
 
 /* START Legacy includes pattern */
 /* TODO: clean this up so we dont have per-OS requirements.
@@ -59,8 +33,9 @@ struct arpreq {
     struct sockaddr arp_ha;   /* hardware address */
     int arp_flags;            /* flags */
 };
-
-#include <Iphlpapi.h>
+#if HAVE_IPHLPAPI_H
+#include <iphlpapi.h>
+#endif
 #endif
 
 #if HAVE_SYS_PARAM_H
@@ -126,7 +101,7 @@ Eui::Eui48::decode(const char *asc)
     if (sscanf(asc, "%x:%x:%x:%x:%x:%x", &a1, &a2, &a3, &a4, &a5, &a6) != 6) {
         debugs(28, DBG_CRITICAL, "Decode EUI-48: Invalid ethernet address '" << asc << "'");
         clear();
-        return false;		/* This is not valid address */
+        return false;       /* This is not valid address */
     }
 
     eui[0] = (u_char) a1;
@@ -141,7 +116,7 @@ Eui::Eui48::decode(const char *asc)
 }
 
 bool
-Eui::Eui48::encode(char *buf, const int len)
+Eui::Eui48::encode(char *buf, const int len) const
 {
     if (len < SZ_EUI48_BUF)
         return false;
@@ -206,6 +181,7 @@ Eui::Eui48::lookup(const Ip::Address &c)
         close(tmpSocket);
 
         if (arpReq.arp_ha.sa_family != ARPHRD_ETHER) {
+            debugs(28, 4, "id=" << (void*)this << " ... not an Ethernet interface: " << arpReq.arp_ha.sa_data);
             clear();
             return false;
         }
@@ -399,7 +375,11 @@ Eui::Eui48::lookup(const Ip::Address &c)
 
     mib[4] = NET_RT_FLAGS;
 
+#if defined(RTF_LLDATA)
+    mib[5] = RTF_LLDATA;
+#else
     mib[5] = RTF_LLINFO;
+#endif
 
     if (sysctl(mib, 6, NULL, &needed, NULL, 0) < 0) {
         debugs(28, DBG_CRITICAL, "Can't estimate ARP table size!");
@@ -546,3 +526,4 @@ Eui::Eui48::lookup(const Ip::Address &c)
 /* ==== END EUI LOOKUP SUPPORT =============================================== */
 
 #endif /* USE_SQUID_EUI */
+

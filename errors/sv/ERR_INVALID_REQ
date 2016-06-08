@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FEL: Beg&auml;rd URL kunde inte h&auml;mtas</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Felaktig F&ouml;rfr&aring;an</b> fel p&aring;tr&auml;ffades n&auml;r f&ouml;rfr&aring;gan skulle behandlas:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>N&aring;gra m&ouml;jliga problem &auml;r:</p>
@@ -31,7 +32,7 @@ body
 <li><p>F&ouml;rfr&aring;gan &auml;r f&ouml;r stor.</p></li>
 <li><p>Content-Length saknas i POST eller PUT beg&auml;ran.</p></li>
 <li><p>Ej till&aring;tet tecken i v&auml;rdnamnet; understryckningstecken &auml;r ej till&aring;tna.</p></li>
-<li><p></p></li>
+<li><p>HTTP/1.1 <q>Expect:</q> feature is being asked from an HTTP/1.0 software.</p></li>
 </ul>
 
 <p>Din cacheserver administrat&ouml;r &auml;r <a href="mailto:%w%W">%w</a>.</p>

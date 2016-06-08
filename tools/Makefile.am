@@ -1,22 +1,21 @@
-#
-#  Makefile for the Squid Object Cache server
-#
-#  Uncomment and customize the following to suit your needs:
-#
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
 
 include $(top_srcdir)/src/Common.am
 
-AUTOMAKE_OPTIONS = subdir-objects
-
 ## we need our local files too (but avoid -I. at all costs)
-INCLUDES += -I$(srcdir)
+AM_CPPFLAGS += -I$(srcdir)
 
-SUBDIRS = purge
-EXTRA_DIST = 
-man_MANS = 
-DISTCLEANFILES = 
+SUBDIRS = purge squidclient systemd sysvinit
+EXTRA_DIST =
+man_MANS =
+DISTCLEANFILES =
 
-LDADD = \
+LDADD= \
 	$(top_builddir)/src/ip/libip.la \
 	$(top_builddir)/lib/libmiscencoding.la \
 	$(top_builddir)/lib/libmiscutil.la \
@@ -35,15 +34,24 @@ test_tools.cc: $(top_srcdir)/test-suite/test_tools.cc
 stub_debug.cc: $(top_srcdir)/src/tests/stub_debug.cc
 	cp $(top_srcdir)/src/tests/stub_debug.cc .
 
+MemBuf.cc: $(top_srcdir)/src/MemBuf.cc
+	cp $(top_srcdir)/src/MemBuf.cc $@
+
 time.cc: $(top_srcdir)/src/time.cc
 	cp $(top_srcdir)/src/time.cc .
+
+stub_cbdata.cc: $(top_srcdir)/src/tests/stub_cbdata.cc
+	cp $(top_srcdir)/src/tests/stub_cbdata.cc $@
+
+stub_mem.cc: $(top_srcdir)/src/tests/stub_mem.cc
+	cp $(top_srcdir)/src/tests/stub_mem.cc $@
 
 # stock tools for unit tests - library independent versions of dlink_list
 # etc.
 # globals.cc is needed by test_tools.cc.
 # Neither of these should be disted from here.
 TESTSOURCES= test_tools.cc
-CLEANFILES += test_tools.cc stub_debug.cc time.cc
+CLEANFILES += test_tools.cc MemBuf.cc stub_debug.cc time.cc stub_cbdata.cc stub_mem.cc
 
 ## ##### helper-mux #####
 
@@ -53,19 +61,6 @@ EXTRA_DIST += helper-mux.pl helper-mux.README
 ## Test Scripts
 EXTRA_DIST += helper-ok-dying.pl helper-ok.pl
 
-## ##### squidclient  #####
-
-bin_PROGRAMS = squidclient
-
-squidclient_SOURCES = squidclient.cc \
-	stub_debug.cc \
-	test_tools.cc \
-	time.cc
-
-EXTRA_DIST += squidclient.1
-man_MANS += squidclient.1
-
-
 
 ## ##### cachemgr.cgi  #####
 
@@ -74,7 +69,10 @@ DEFAULT_CACHEMGR_CONFIG = $(sysconfdir)/cachemgr.conf
 libexec_PROGRAMS = cachemgr$(CGIEXT)
 
 cachemgr__CGIEXT__SOURCES = cachemgr.cc \
+	MemBuf.cc \
+	stub_cbdata.cc \
 	stub_debug.cc \
+	stub_mem.cc \
 	test_tools.cc \
 	time.cc
 

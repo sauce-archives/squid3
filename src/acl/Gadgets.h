@@ -1,12 +1,18 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ACL_GADGETS_H
 #define SQUID_ACL_GADGETS_H
 
-#include "err_type.h"
 #include "acl/forward.h"
+#include "err_type.h"
 
-#if HAVE_SSTREAM
 #include <sstream>
-#endif
 
 class ConfigParser;
 class dlink_list;
@@ -57,3 +63,4 @@ void dump_acl_access(StoreEntry * entry, const char *name, acl_access * head);
 void dump_acl_list(StoreEntry * entry, ACLList * head);
 
 #endif /* SQUID_ACL_GADGETS_H */
+

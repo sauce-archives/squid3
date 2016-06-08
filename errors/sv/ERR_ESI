@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FEL: Beg&auml;rd URL kunde inte h&auml;mtas</title>
 <style type="text/css"><!-- 
@@ -25,7 +26,7 @@ body
 
 <p>ESI motorn returnerade:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%Z</pre>
 </blockquote>
 
 <p>Detta betyder att surrogat servern kunde inte bearbeta ESI mallen. V&auml;nligen kontakta den ansvariga f&ouml;r webbservern ifr&aring;ga.</p>

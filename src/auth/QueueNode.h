@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_SRC_AUTH_QUEUENODE_H
 #define SQUID_SRC_AUTH_QUEUENODE_H
 
@@ -24,10 +32,10 @@ private:
 
 public:
     QueueNode(Auth::UserRequest *aRequest, AUTHCB *aHandler, void *aData) :
-            next(NULL),
-            auth_user_request(aRequest),
-            handler(aHandler),
-            data(cbdataReference(aData)) {}
+        next(NULL),
+        auth_user_request(aRequest),
+        handler(aHandler),
+        data(cbdataReference(aData)) {}
     ~QueueNode() {
         cbdataReferenceDone(data);
         while (next) {
@@ -51,3 +59,4 @@ MEMPROXY_CLASS_INLINE(Auth::QueueNode);
 } // namespace Auth
 
 #endif /* SQUID_SRC_AUTH_QUEUENODE_H */
+

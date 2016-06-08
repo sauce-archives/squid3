@@ -1,35 +1,12 @@
-
 /*
- * DEBUG: section 67    String
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 67    String */
 
 #include "squid.h"
 #include "base/TextException.h"
@@ -38,9 +15,7 @@
 #include "profiler/Profiler.h"
 #include "Store.h"
 
-#if HAVE_LIMITS_H
-#include <limits.h>
-#endif
+#include <climits>
 
 int
 String::psize() const
@@ -67,7 +42,7 @@ void
 String::setBuffer(char *aBuf, String::size_type aSize)
 {
     assert(undefined());
-    assert(aSize < 65536);
+    assert(aSize <= SizeMax_);
     buf_ = aBuf;
     size_ = aSize;
 }
@@ -130,7 +105,7 @@ void
 String::allocAndFill(const char *str, int len)
 {
     PROF_start(StringAllocAndFill);
-    assert(this && str);
+    assert(str);
     allocBuffer(len + 1);
     len_ = len;
     memcpy(buf_, str, len);
@@ -152,7 +127,6 @@ void
 String::clean()
 {
     PROF_start(StringClean);
-    assert(this);
 
     /* TODO if mempools has already closed this will FAIL!! */
     if (defined())
@@ -188,7 +162,6 @@ String::reset(char const *str)
 void
 String::append( char const *str, int len)
 {
-    assert(this);
     assert(str && len >= 0);
 
     PROF_start(StringAppend);
@@ -198,7 +171,7 @@ String::append( char const *str, int len)
     } else {
         // Create a temporary string and absorb it later.
         String snew;
-        assert(len_ + len < 65536); // otherwise snew.len_ overflows below
+        assert(canGrowBy(len)); // otherwise snew.len_ may overflow below
         snew.len_ = len_ + len;
         snew.allocBuffer(snew.len_ + 1);
 
@@ -497,3 +470,4 @@ String::rfind(char const ch) const
 #if !_USE_INLINE_
 #include "String.cci"
 #endif
+

@@ -1,4 +1,10 @@
-#include "squid.h"
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
 
 /* UNIX SMBlib NetBIOS implementation
 
@@ -6,7 +12,6 @@
    SMBlib Utility Routines
 
    Copyright (C) Richard Sharpe 1996
-
 */
 
 /*
@@ -25,9 +30,10 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include "smblib/smblib.h"
-#include "smblib/smblib-priv.h"
+#include "squid.h"
 #include "rfcnb/rfcnb.h"
+#include "smblib/smblib-priv.h"
+#include "smblib/smblib.h"
 
 #if HAVE_STRING_H
 #include <string.h>
@@ -819,3 +825,4 @@ void SMB_Get_Error_Msg(int msg, char *msgbuf, int len)
     }
 
 }
+

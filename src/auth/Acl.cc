@@ -1,9 +1,17 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "acl/Acl.h"
 #include "acl/FilledChecklist.h"
-#include "auth/UserRequest.h"
 #include "auth/Acl.h"
 #include "auth/AclProxyAuth.h"
+#include "auth/UserRequest.h"
 #include "client_side.h"
 #include "HttpRequest.h"
 
@@ -46,7 +54,7 @@ AuthenticateAcl(ACLChecklist *ch)
     /* Note: this fills in auth_user_request when applicable */
     const AuthAclState result = Auth::UserRequest::tryToAuthenticateAndSetAuthUser(
                                     &checklist->auth_user_request, headertype, request,
-                                    checklist->conn(), checklist->src_addr);
+                                    checklist->conn(), checklist->src_addr, checklist->al);
     switch (result) {
 
     case AUTH_ACL_CANNOT_AUTHENTICATE:
@@ -77,3 +85,4 @@ AuthenticateAcl(ACLChecklist *ch)
         return ACCESS_DENIED;
     }
 }
+

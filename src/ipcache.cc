@@ -1,38 +1,16 @@
 /*
- * DEBUG: section 14    IP Cache
- * AUTHOR: Harvest Derived
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
+/* DEBUG: section 14    IP Cache */
+
 #include "squid.h"
-#include "cbdata.h"
 #include "CacheManager.h"
+#include "cbdata.h"
 #include "dlink.h"
 #include "DnsLookupDetails.h"
 #include "event.h"
@@ -72,8 +50,8 @@
  \defgroup IPCacheInternal IP Cache Internals
  \ingroup IPCacheAPI
  \todo  when IP cache is provided as a class. These sub-groups will be obsolete
- *	for now they are used to seperate the public and private functions.
- *	with the private ones all being in IPCachInternal and public in IPCacheAPI
+ *  for now they are used to seperate the public and private functions.
+ *  with the private ones all being in IPCachInternal and public in IPCacheAPI
  *
  \section InternalOperation Internal Operation
  *
@@ -102,7 +80,7 @@
 class ipcache_entry
 {
 public:
-    hash_link hash;		/* must be first */
+    hash_link hash;     /* must be first */
     time_t lastref;
     time_t expires;
     ipcache_addrs addrs;
@@ -143,17 +121,9 @@ static dlink_list lru_list;
 static void stat_ipcache_get(StoreEntry *);
 
 static FREE ipcacheFreeEntry;
-#if USE_DNSHELPER
-static HLPCB ipcacheHandleReply;
-#else
 static IDNSCB ipcacheHandleReply;
-#endif
 static int ipcacheExpiredEntry(ipcache_entry *);
-#if USE_DNSHELPER
-static int ipcacheParse(ipcache_entry *, const char *buf);
-#else
 static int ipcacheParse(ipcache_entry *, const rfc1035_rr *, int, const char *error);
-#endif
 static ipcache_entry *ipcache_get(const char *);
 static void ipcacheLockEntry(ipcache_entry *);
 static void ipcacheStatPrint(ipcache_entry *, StoreEntry *);
@@ -279,8 +249,8 @@ purge_entries_fromhosts(void)
     ipcache_entry *i = NULL, *t;
 
     while (m) {
-        if (i != NULL) {	/* need to delay deletion */
-            ipcacheRelease(i);	/* we just override locks */
+        if (i != NULL) {    /* need to delay deletion */
+            ipcacheRelease(i);  /* we just override locks */
             i = NULL;
         }
 
@@ -359,110 +329,6 @@ ipcacheCallback(ipcache_entry *i, int wait)
 }
 
 /// \ingroup IPCacheAPI
-#if USE_DNSHELPER
-static int
-ipcacheParse(ipcache_entry *i, const char *inbuf)
-{
-    LOCAL_ARRAY(char, buf, DNS_INBUF_SZ);
-    char *token;
-    int ipcount = 0;
-    int ttl;
-    char *A[32];
-    const char *name = (const char *)i->hash.key;
-    i->expires = squid_curtime + Config.negativeDnsTtl;
-    i->flags.negcached = 1;
-    safe_free(i->addrs.in_addrs);
-    safe_free(i->addrs.bad_mask);
-    safe_free(i->error_message);
-    i->addrs.count = 0;
-
-    if (inbuf == NULL) {
-        debugs(14, DBG_IMPORTANT, "ipcacheParse: Got <NULL> reply");
-        i->error_message = xstrdup("Internal Error");
-        return -1;
-    }
-
-    xstrncpy(buf, inbuf, DNS_INBUF_SZ);
-    debugs(14, 5, "ipcacheParse: parsing: {" << buf << "}");
-    token = strtok(buf, w_space);
-
-    if (NULL == token) {
-        debugs(14, DBG_IMPORTANT, "ipcacheParse: expecting result, got '" << inbuf << "'");
-
-        i->error_message = xstrdup("Internal Error");
-        return -1;
-    }
-
-    if (0 == strcmp(token, "$fail")) {
-        token = strtok(NULL, "\n");
-        assert(NULL != token);
-        i->error_message = xstrdup(token);
-        return 0;
-    }
-
-    if (0 != strcmp(token, "$addr")) {
-        debugs(14, DBG_IMPORTANT, "ipcacheParse: expecting '$addr', got '" << inbuf << "' in response to '" << name << "'");
-
-        i->error_message = xstrdup("Internal Error");
-        return -1;
-    }
-
-    token = strtok(NULL, w_space);
-
-    if (NULL == token) {
-        debugs(14, DBG_IMPORTANT, "ipcacheParse: expecting TTL, got '" << inbuf << "' in response to '" << name << "'");
-
-        i->error_message = xstrdup("Internal Error");
-        return -1;
-    }
-
-    ttl = atoi(token);
-
-    while (NULL != (token = strtok(NULL, w_space))) {
-        A[ipcount] = token;
-
-        if (++ipcount == 32)
-            break;
-    }
-
-    if (ipcount > 0) {
-        int j, k;
-
-        i->addrs.in_addrs = static_cast<Ip::Address *>(xcalloc(ipcount, sizeof(Ip::Address)));
-        for (int l = 0; l < ipcount; ++l)
-            i->addrs.in_addrs[l].setEmpty(); // perform same init actions as constructor would.
-        i->addrs.bad_mask = (unsigned char *)xcalloc(ipcount, sizeof(unsigned char));
-        memset(i->addrs.bad_mask, 0, sizeof(unsigned char) * ipcount);
-
-        for (j = 0, k = 0; k < ipcount; ++k) {
-            if ((i->addrs.in_addrs[j] = A[k]))
-                ++j;
-            else
-                debugs(14, DBG_IMPORTANT, "ipcacheParse: Invalid IP address '" << A[k] << "' in response to '" << name << "'");
-        }
-
-        i->addrs.count = (unsigned char) j;
-    }
-
-    if (i->addrs.count <= 0) {
-        debugs(14, DBG_IMPORTANT, "ipcacheParse: No addresses in response to '" << name << "'");
-        return -1;
-    }
-
-    if (ttl == 0 || ttl > Config.positiveDnsTtl)
-        ttl = Config.positiveDnsTtl;
-
-    if (ttl < Config.negativeDnsTtl)
-        ttl = Config.negativeDnsTtl;
-
-    i->expires = squid_curtime + ttl;
-
-    i->flags.negcached = 0;
-
-    return i->addrs.count;
-}
-
-#else
 static int
 ipcacheParse(ipcache_entry *i, const rfc1035_rr * answers, int nr, const char *error_message)
 {
@@ -591,15 +457,9 @@ ipcacheParse(ipcache_entry *i, const rfc1035_rr * answers, int nr, const char *e
     return i->addrs.count;
 }
 
-#endif
-
 /// \ingroup IPCacheInternal
 static void
-#if USE_DNSHELPER
-ipcacheHandleReply(void *data, const HelperReply &reply)
-#else
 ipcacheHandleReply(void *data, const rfc1035_rr * answers, int na, const char *error_message)
-#endif
 {
     ipcache_entry *i;
     static_cast<generic_cbdata *>(data)->unwrap(&i);
@@ -607,17 +467,10 @@ ipcacheHandleReply(void *data, const rfc1035_rr * answers, int na, const char *e
     const int age = i->age();
     statCounter.dns.svcTime.count(age);
 
-#if USE_DNSHELPER
-    ipcacheParse(i, reply.other().content());
-#else
-
     int done = ipcacheParse(i, answers, na, error_message);
 
     /* If we have not produced either IPs or Error immediately, wait for recursion to finish. */
-    if (done != 0 || error_message != NULL)
-#endif
-
-    {
+    if (done != 0 || error_message != NULL) {
         ipcacheAddEntry(i);
         ipcacheCallback(i, age);
     }
@@ -626,10 +479,10 @@ ipcacheHandleReply(void *data, const rfc1035_rr * answers, int na, const char *e
 /**
  \ingroup IPCacheAPI
  *
- \param name		Host to resolve.
- \param handler		Pointer to the function to be called when the reply
- *			from the IP cache (or the DNS if the IP cache misses)
- \param handlerData	Information that is passed to the handler and does not affect the IP cache.
+ \param name        Host to resolve.
+ \param handler     Pointer to the function to be called when the reply
+ *          from the IP cache (or the DNS if the IP cache misses)
+ \param handlerData Information that is passed to the handler and does not affect the IP cache.
  *
  * XXX: on hits and some errors, the handler is called immediately instead
  * of scheduling an async call. This reentrant behavior means that the
@@ -700,11 +553,7 @@ ipcache_nbgethostbyname(const char *name, IPH * handler, void *handlerData)
     i->handlerData = cbdataReference(handlerData);
     i->request_time = current_time;
     c = new generic_cbdata(i);
-#if USE_DNSHELPER
-    dnsSubmit(hashKeyStr(&i->hash), ipcacheHandleReply, c);
-#else
     idnsALookup(hashKeyStr(&i->hash), ipcacheHandleReply, c);
-#endif
 }
 
 /// \ingroup IPCacheInternal
@@ -753,13 +602,13 @@ ipcache_init(void)
  * if an entry exists in the cache and does not by default contact the DNS,
  * unless this is requested, by setting the flags.
  *
- \param name		Host name to resolve.
- \param flags		Default is NULL, set to IP_LOOKUP_IF_MISS
- *			to explicitly perform DNS lookups.
+ \param name        Host name to resolve.
+ \param flags       Default is NULL, set to IP_LOOKUP_IF_MISS
+ *          to explicitly perform DNS lookups.
  *
- \retval NULL	An error occured during lookup
- \retval NULL	No results available in cache and no lookup specified
- \retval *	Pointer to the ipcahce_addrs structure containing the lookup results
+ \retval NULL   An error occured during lookup
+ \retval NULL   No results available in cache and no lookup specified
+ \retval *  Pointer to the ipcahce_addrs structure containing the lookup results
  */
 const ipcache_addrs *
 ipcache_gethostbyname(const char *name, int flags)
@@ -1043,8 +892,8 @@ ipcacheCycleAddr(const char *name, ipcache_addrs * ia)
 /**
  \ingroup IPCacheAPI
  *
- \param name	domain name to have an IP marked bad
- \param addr	specific addres to be marked bad
+ \param name    domain name to have an IP marked bad
+ \param addr    specific addres to be marked bad
  */
 void
 ipcacheMarkBadAddr(const char *name, const Ip::Address &addr)
@@ -1119,10 +968,10 @@ ipcacheMarkGoodAddr(const char *name, const Ip::Address &addr)
             break;
     }
 
-    if (k == (int) ia->count)	/* not found */
+    if (k == (int) ia->count)   /* not found */
         return;
 
-    if (!ia->bad_mask[k])	/* already OK */
+    if (!ia->bad_mask[k])   /* already OK */
         return;
 
     ia->bad_mask[k] = FALSE;
@@ -1175,11 +1024,11 @@ ipcache_restart(void)
  *
  * Adds a "static" entry from /etc/hosts
  *
- \param name	Hostname to be linked with IP
- \param ipaddr	IP Address to be cached.
+ \param name    Hostname to be linked with IP
+ \param ipaddr  IP Address to be cached.
  *
- \retval 0	Success.
- \retval 1	IP address is invalid or other error.
+ \retval 0  Success.
+ \retval 1  IP address is invalid or other error.
  */
 int
 ipcacheAddEntryFromHosts(const char *name, const char *ipaddr)
@@ -1298,3 +1147,4 @@ snmp_netIpFn(variable_list * Var, snint * ErrP)
 }
 
 #endif /*SQUID_SNMP */
+

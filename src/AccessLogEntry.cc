@@ -1,16 +1,24 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "AccessLogEntry.h"
 #include "HttpReply.h"
 #include "HttpRequest.h"
 #include "SquidConfig.h"
 
-#if USE_SSL
+#if USE_OPENSSL
 #include "ssl/support.h"
 
 AccessLogEntry::SslDetails::SslDetails(): user(NULL), bumpMode(::Ssl::bumpEnd)
 {
 }
-#endif /* USE_SSL */
+#endif /* USE_OPENSSL */
 
 void
 AccessLogEntry::getLogClientIp(char *buf, size_t bufsz) const
@@ -60,5 +68,5 @@ AccessLogEntry::~AccessLogEntry()
     HTTPMSGUNLOCK(icap.reply);
     HTTPMSGUNLOCK(icap.request);
 #endif
-    cbdataReferenceDone(cache.port);
 }
+

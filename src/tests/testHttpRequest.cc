@@ -1,13 +1,21 @@
-#define SQUID_UNIT_TEST 1
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 
 #include <cppunit/TestAssert.h>
 
-#include "testHttpRequest.h"
 #include "HttpHeader.h"
 #include "HttpRequest.h"
 #include "Mem.h"
 #include "mime_header.h"
+#include "testHttpRequest.h"
+#include "unitTestMain.h"
 
 CPPUNIT_TEST_SUITE_REGISTRATION( testHttpRequest );
 
@@ -43,7 +51,7 @@ testHttpRequest::testCreateFromUrlAndMethod()
     CPPUNIT_ASSERT(aRequest->method == Http::METHOD_GET);
     CPPUNIT_ASSERT_EQUAL(String("foo"), String(aRequest->GetHost()));
     CPPUNIT_ASSERT_EQUAL(String("/bar"), aRequest->urlpath);
-    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, aRequest->protocol);
+    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, static_cast<AnyP::ProtocolType>(aRequest->url.getScheme()));
     CPPUNIT_ASSERT_EQUAL(String("http://foo:90/bar"), String(url));
     xfree(url);
 
@@ -55,7 +63,7 @@ testHttpRequest::testCreateFromUrlAndMethod()
     CPPUNIT_ASSERT(aRequest->method == Http::METHOD_PUT);
     CPPUNIT_ASSERT_EQUAL(String("foo"), String(aRequest->GetHost()));
     CPPUNIT_ASSERT_EQUAL(String("/bar"), aRequest->urlpath);
-    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, aRequest->protocol);
+    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, static_cast<AnyP::ProtocolType>(aRequest->url.getScheme()));
     CPPUNIT_ASSERT_EQUAL(String("http://foo/bar"), String(url));
     xfree(url);
 
@@ -73,7 +81,7 @@ testHttpRequest::testCreateFromUrlAndMethod()
     CPPUNIT_ASSERT(aRequest->method == Http::METHOD_CONNECT);
     CPPUNIT_ASSERT_EQUAL(String("foo"), String(aRequest->GetHost()));
     CPPUNIT_ASSERT_EQUAL(String(""), aRequest->urlpath);
-    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_NONE, aRequest->protocol);
+    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_NONE, static_cast<AnyP::ProtocolType>(aRequest->url.getScheme()));
     CPPUNIT_ASSERT_EQUAL(String("foo:45"), String(url));
     xfree(url);
 }
@@ -93,7 +101,7 @@ testHttpRequest::testCreateFromUrl()
     CPPUNIT_ASSERT(aRequest->method == Http::METHOD_GET);
     CPPUNIT_ASSERT_EQUAL(String("foo"), String(aRequest->GetHost()));
     CPPUNIT_ASSERT_EQUAL(String("/bar"), aRequest->urlpath);
-    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, aRequest->protocol);
+    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, static_cast<AnyP::ProtocolType>(aRequest->url.getScheme()));
     CPPUNIT_ASSERT_EQUAL(String("http://foo:90/bar"), String(url));
     xfree(url);
 }
@@ -116,7 +124,7 @@ testHttpRequest::testIPv6HostColonBug()
     CPPUNIT_ASSERT(aRequest->method == Http::METHOD_GET);
     CPPUNIT_ASSERT_EQUAL(String("[2000:800::45]"), String(aRequest->GetHost()));
     CPPUNIT_ASSERT_EQUAL(String("/foo"), aRequest->urlpath);
-    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, aRequest->protocol);
+    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, static_cast<AnyP::ProtocolType>(aRequest->url.getScheme()));
     CPPUNIT_ASSERT_EQUAL(String("http://[2000:800::45]/foo"), String(url));
     xfree(url);
 
@@ -128,7 +136,7 @@ testHttpRequest::testIPv6HostColonBug()
     CPPUNIT_ASSERT(aRequest->method == Http::METHOD_GET);
     CPPUNIT_ASSERT_EQUAL(String("[2000:800::45]"), String(aRequest->GetHost()));
     CPPUNIT_ASSERT_EQUAL(String("/foo"), aRequest->urlpath);
-    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, aRequest->protocol);
+    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, static_cast<AnyP::ProtocolType>(aRequest->url.getScheme()));
     CPPUNIT_ASSERT_EQUAL(String("http://[2000:800::45]:90/foo"), String(url));
     xfree(url);
 
@@ -140,7 +148,7 @@ testHttpRequest::testIPv6HostColonBug()
     CPPUNIT_ASSERT(aRequest->method == Http::METHOD_GET);
     CPPUNIT_ASSERT_EQUAL(String("[2000:800::45]"), String(aRequest->GetHost()));
     CPPUNIT_ASSERT_EQUAL(String("/foo"), aRequest->urlpath);
-    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, aRequest->protocol);
+    CPPUNIT_ASSERT_EQUAL(AnyP::PROTO_HTTP, static_cast<AnyP::ProtocolType>(aRequest->url.getScheme()));
     CPPUNIT_ASSERT_EQUAL(String("http://2000:800::45/foo"), String(url));
     xfree(url);
 }
@@ -201,3 +209,4 @@ testHttpRequest::testSanityCheckStartLine()
     input.reset();
     error = Http::scNone;
 }
+

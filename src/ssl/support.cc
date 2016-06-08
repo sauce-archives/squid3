@@ -1,62 +1,55 @@
-
 /*
- * AUTHOR: Benno Rice
- * DEBUG: section 83    SSL accelerator support
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Internet Object Cache  http://squid.nlanr.net/Squid/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from the
- *  Internet community.  Development is led by Duane Wessels of the
- *  National Laboratory for Applied Network Research and funded by the
- *  National Science Foundation.  Squid is Copyrighted (C) 1998 by
- *  Duane Wessels and the University of California San Diego.  Please
- *  see the COPYRIGHT file for full details.  Squid incorporates
- *  software developed and/or copyrighted by other sources.  Please see
- *  the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 83    SSL accelerator support */
 
 #include "squid.h"
 
 /* MS Visual Studio Projects are monolithic, so we need the following
  * #if to exclude the SSL code from compile process when not needed.
  */
-#if USE_SSL
+#if USE_OPENSSL
 
 #include "acl/FilledChecklist.h"
 #include "anyp/PortCfg.h"
+#include "fd.h"
 #include "fde.h"
 #include "globals.h"
+#include "ipc/MemMap.h"
 #include "SquidConfig.h"
+#include "SquidTime.h"
+#include "ssl/bio.h"
 #include "ssl/Config.h"
 #include "ssl/ErrorDetail.h"
-#include "ssl/support.h"
 #include "ssl/gadgets.h"
+#include "ssl/support.h"
 #include "URL.h"
 
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
+#include <cerrno>
+
+static void setSessionCallbacks(SSL_CTX *ctx);
+Ipc::MemMap *SslSessionCache = NULL;
+const char *SslSessionCacheName = "ssl_session_cache";
+
+static Ssl::CertsIndexedList SquidUntrustedCerts;
+
+const EVP_MD *Ssl::DefaultSignHash = NULL;
 
 const char *Ssl::BumpModeStr[] = {
     "none",
     "client-first",
     "server-first",
+    "peek",
+    "stare",
+    "bump",
+    "splice",
+    "terminate",
+    /*"err",*/
     NULL
 };
 
@@ -209,7 +202,13 @@ static int check_domain( void *check_data, ASN1_STRING *cn_data)
     if (cn_data->length > (int)sizeof(cn) - 1) {
         return 1; //if does not fit our buffer just ignore
     }
-    memcpy(cn, cn_data->data, cn_data->length);
+    char *s = reinterpret_cast<char*>(cn_data->data);
+    char *d = cn;
+    for (int i = 0; i < cn_data->length; ++i, ++d, ++s) {
+        if (*s == '\0')
+            return 1; // always a domain mismatch. contains 0x00
+        *d = *s;
+    }
     cn[cn_data->length] = '\0';
     debugs(83, 4, "Verifying server domain " << server << " to certificate name/subjectAltName " << cn);
     return matchDomainName(server, cn[0] == '*' ? cn + 1 : cn);
@@ -230,7 +229,7 @@ ssl_verify_cb(int ok, X509_STORE_CTX * ctx)
     char buffer[256] = "";
     SSL *ssl = (SSL *)X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
     SSL_CTX *sslctx = SSL_get_SSL_CTX(ssl);
-    const char *server = (const char *)SSL_get_ex_data(ssl, ssl_ex_index_server);
+    SBuf *server = (SBuf *)SSL_get_ex_data(ssl, ssl_ex_index_server);
     void *dont_verify_domain = SSL_CTX_get_ex_data(sslctx, ssl_ctx_ex_index_dont_verify_domain);
     ACLChecklist *check = (ACLChecklist*)SSL_get_ex_data(ssl, ssl_ex_index_cert_error_check);
     X509 *peeked_cert = (X509 *)SSL_get_ex_data(ssl, ssl_ex_index_ssl_peeked_cert);
@@ -260,8 +259,8 @@ ssl_verify_cb(int ok, X509_STORE_CTX * ctx)
         debugs(83, 5, "SSL Certificate signature OK: " << buffer);
 
         // Check for domain mismatch only if the current certificate is the peer certificate.
-        if (server && peer_cert == X509_STORE_CTX_get_current_cert(ctx)) {
-            if (!Ssl::checkX509ServerValidity(peer_cert, server)) {
+        if (!dont_verify_domain && server && peer_cert == X509_STORE_CTX_get_current_cert(ctx)) {
+            if (!Ssl::checkX509ServerValidity(peer_cert, server->c_str())) {
                 debugs(83, 2, "SQUID_X509_V_ERR_DOMAIN_MISMATCH: Certificate " << buffer << " does not match domainname " << server);
                 ok = 0;
                 error_no = SQUID_X509_V_ERR_DOMAIN_MISMATCH;
@@ -321,17 +320,18 @@ ssl_verify_cb(int ok, X509_STORE_CTX * ctx)
             // pass them to certficate validator for more processing
             else if (Ssl::TheConfig.ssl_crt_validator) {
                 ok = 1;
-                // Check if we have stored certificates chain. Store if not.
-                if (!SSL_get_ex_data(ssl, ssl_ex_index_ssl_cert_chain)) {
-                    STACK_OF(X509) *certStack = X509_STORE_CTX_get1_chain(ctx);
-                    if (certStack && !SSL_set_ex_data(ssl, ssl_ex_index_ssl_cert_chain, certStack))
-                        sk_X509_pop_free(certStack, X509_free);
-                }
             }
         }
     }
 
-    if (!dont_verify_domain && server) {}
+    if (Ssl::TheConfig.ssl_crt_validator) {
+        // Check if we have stored certificates chain. Store if not.
+        if (!SSL_get_ex_data(ssl, ssl_ex_index_ssl_cert_chain)) {
+            STACK_OF(X509) *certStack = X509_STORE_CTX_get1_chain(ctx);
+            if (certStack && !SSL_set_ex_data(ssl, ssl_ex_index_ssl_cert_chain, certStack))
+                sk_X509_pop_free(certStack, X509_free);
+        }
+    }
 
     if (!ok && !SSL_get_ex_data(ssl, ssl_ex_index_ssl_error_detail) ) {
 
@@ -488,6 +488,16 @@ ssl_options[] = {
         "No_Compression", SSL_OP_NO_COMPRESSION
     },
 #endif
+#if SSL_OP_NO_TICKET
+    {
+        "NO_TICKET", SSL_OP_NO_TICKET
+    },
+#endif
+#if SSL_OP_SINGLE_ECDH_USE
+    {
+        "SINGLE_ECDH_USE", SSL_OP_SINGLE_ECDH_USE
+    },
+#endif
     {
         "", 0
     },
@@ -552,7 +562,7 @@ Ssl::parse_options(const char *options)
             value = strtol(option + 2, NULL, 16);
         } else {
             fatalf("Unknown SSL option '%s'", option);
-            value = 0;		/* Keep GCC happy */
+            value = 0;      /* Keep GCC happy */
         }
 
         switch (mode) {
@@ -576,19 +586,19 @@ no_options:
 }
 
 /// \ingroup ServerProtocolSSLInternal
-#define SSL_FLAG_NO_DEFAULT_CA		(1<<0)
+#define SSL_FLAG_NO_DEFAULT_CA      (1<<0)
 /// \ingroup ServerProtocolSSLInternal
-#define SSL_FLAG_DELAYED_AUTH		(1<<1)
+#define SSL_FLAG_DELAYED_AUTH       (1<<1)
 /// \ingroup ServerProtocolSSLInternal
-#define SSL_FLAG_DONT_VERIFY_PEER	(1<<2)
+#define SSL_FLAG_DONT_VERIFY_PEER   (1<<2)
 /// \ingroup ServerProtocolSSLInternal
-#define SSL_FLAG_DONT_VERIFY_DOMAIN	(1<<3)
+#define SSL_FLAG_DONT_VERIFY_DOMAIN (1<<3)
 /// \ingroup ServerProtocolSSLInternal
-#define SSL_FLAG_NO_SESSION_REUSE	(1<<4)
+#define SSL_FLAG_NO_SESSION_REUSE   (1<<4)
 /// \ingroup ServerProtocolSSLInternal
-#define SSL_FLAG_VERIFY_CRL		(1<<5)
+#define SSL_FLAG_VERIFY_CRL     (1<<5)
 /// \ingroup ServerProtocolSSLInternal
-#define SSL_FLAG_VERIFY_CRL_ALL		(1<<6)
+#define SSL_FLAG_VERIFY_CRL_ALL     (1<<6)
 
 /// \ingroup ServerProtocolSSLInternal
 long
@@ -701,6 +711,15 @@ ssl_free_X509(void *, void *ptr, CRYPTO_EX_DATA *,
     X509_free(cert);
 }
 
+// "free" function for SBuf
+static void
+ssl_free_SBuf(void *, void *ptr, CRYPTO_EX_DATA *,
+              int, long, void *)
+{
+    SBuf  *buf = static_cast <SBuf *>(ptr);
+    delete buf;
+}
+
 /// \ingroup ServerProtocolSSLInternal
 static void
 ssl_initialize(void)
@@ -729,7 +748,12 @@ ssl_initialize(void)
         fatalf("Your OpenSSL has no SSL engine support\n");
 #endif
 
-    ssl_ex_index_server = SSL_get_ex_new_index(0, (void *) "server", NULL, NULL, NULL);
+    const char *defName = Config.SSL.certSignHash ? Config.SSL.certSignHash : SQUID_SSL_SIGN_HASH_IF_NONE;
+    Ssl::DefaultSignHash = EVP_get_digestbyname(defName);
+    if (!Ssl::DefaultSignHash)
+        fatalf("Sign hash '%s' is not supported\n", defName);
+
+    ssl_ex_index_server = SSL_get_ex_new_index(0, (void *) "server", NULL, NULL, ssl_free_SBuf);
     ssl_ctx_ex_index_dont_verify_domain = SSL_CTX_get_ex_new_index(0, (void *) "dont_verify_domain", NULL, NULL, NULL);
     ssl_ex_index_cert_error_check = SSL_get_ex_new_index(0, (void *) "cert_error_check", NULL, &ssl_dupAclChecklist, &ssl_freeAclChecklist);
     ssl_ex_index_ssl_error_detail = SSL_get_ex_new_index(0, (void *) "ssl_error_detail", NULL, NULL, &ssl_free_ErrorDetail);
@@ -821,11 +845,50 @@ Ssl::readDHParams(const char *dhfile)
     return dh;
 }
 
+#if defined(SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS)
+static void
+ssl_info_cb(const SSL *ssl, int where, int ret)
+{
+    (void)ret;
+    if ((where & SSL_CB_HANDSHAKE_DONE) != 0) {
+        // disable renegotiation (CVE-2009-3555)
+        ssl->s3->flags |= SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS;
+    }
+}
+#endif
+
+static bool
+configureSslEECDH(SSL_CTX *sslContext, const char *curve)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x0090800fL && !defined(OPENSSL_NO_ECDH)
+    int nid = OBJ_sn2nid(curve);
+    if (!nid) {
+        debugs(83, DBG_CRITICAL, "ERROR: Unknown EECDH curve '" << curve << "'");
+        return false;
+    }
+
+    EC_KEY *ecdh = EC_KEY_new_by_curve_name(nid);
+    if (ecdh == NULL)
+        return false;
+
+    const bool ok = SSL_CTX_set_tmp_ecdh(sslContext, ecdh) != 0;
+    EC_KEY_free(ecdh);
+    return ok;
+#else
+    debugs(83, DBG_CRITICAL, "ERROR: EECDH is not available in this build. Please link against OpenSSL>=0.9.8 and ensure OPENSSL_NO_ECDH is not set.");
+    return false;
+#endif
+}
+
 static bool
 configureSslContext(SSL_CTX *sslContext, AnyP::PortCfg &port)
 {
     int ssl_error;
     SSL_CTX_set_options(sslContext, port.sslOptions);
+
+#if defined(SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS)
+    SSL_CTX_set_info_callback(sslContext, ssl_info_cb);
+#endif
 
     if (port.sslContextSessionId)
         SSL_CTX_set_session_id_context(sslContext, (const unsigned char *)port.sslContextSessionId, strlen(port.sslContextSessionId));
@@ -853,6 +916,16 @@ configureSslContext(SSL_CTX *sslContext, AnyP::PortCfg &port)
     debugs(83, 9, "Setting RSA key generation callback.");
     SSL_CTX_set_tmp_rsa_callback(sslContext, ssl_temp_rsa_cb);
 
+    if (port.eecdhCurve) {
+        debugs(83, 9, "Setting Ephemeral ECDH curve to " << port.eecdhCurve << ".");
+
+        if (!configureSslEECDH(sslContext, port.eecdhCurve)) {
+            ssl_error = ERR_get_error();
+            debugs(83, DBG_CRITICAL, "ERROR: Unable to configure Ephemeral ECDH: " << ERR_error_string(ssl_error, NULL));
+            return false;
+        }
+    }
+
     debugs(83, 9, "Setting CA certificate locations.");
 
     const char *cafile = port.cafile ? port.cafile : port.clientca;
@@ -869,7 +942,13 @@ configureSslContext(SSL_CTX *sslContext, AnyP::PortCfg &port)
 
     if (port.clientCA.get()) {
         ERR_clear_error();
-        SSL_CTX_set_client_CA_list(sslContext, port.clientCA.get());
+        if (STACK_OF(X509_NAME) *clientca = SSL_dup_CA_list(port.clientCA.get())) {
+            SSL_CTX_set_client_CA_list(sslContext, clientca);
+        } else {
+            ssl_error = ERR_get_error();
+            debugs(83, DBG_CRITICAL, "ERROR: Failed to dupe the client CA list: " << ERR_error_string(ssl_error, NULL));
+            return false;
+        }
 
         if (port.sslContextFlags & SSL_FLAG_DELAYED_AUTH) {
             debugs(83, 9, "Not requesting client certificates until acl processing requires one");
@@ -906,6 +985,8 @@ configureSslContext(SSL_CTX *sslContext, AnyP::PortCfg &port)
 
     if (port.sslContextFlags & SSL_FLAG_DONT_VERIFY_DOMAIN)
         SSL_CTX_set_ex_data(sslContext, ssl_ctx_ex_index_dont_verify_domain, (void *) -1);
+
+    setSessionCallbacks(sslContext);
 
     return true;
 }
@@ -991,6 +1072,163 @@ sslCreateServerContext(AnyP::PortCfg &port)
     return sslContext;
 }
 
+int Ssl::OpenSSLtoSquidSSLVersion(int sslVersion)
+{
+    if (sslVersion == SSL2_VERSION)
+        return 2;
+    else if (sslVersion == SSL3_VERSION)
+        return 3;
+    else if (sslVersion == TLS1_VERSION)
+        return 4;
+#if OPENSSL_VERSION_NUMBER >= 0x10001000L
+    else if (sslVersion == TLS1_1_VERSION)
+        return 5;
+    else if (sslVersion == TLS1_2_VERSION)
+        return 6;
+#endif
+    else
+        return 1;
+}
+
+#if OPENSSL_VERSION_NUMBER < 0x00909000L
+SSL_METHOD *
+#else
+const SSL_METHOD *
+#endif
+Ssl::method(int version)
+{
+    switch (version) {
+
+    case 2:
+#if !defined(OPENSSL_NO_SSL2)
+        debugs(83, 5, "Using SSLv2.");
+        return SSLv2_client_method();
+#else
+        debugs(83, DBG_IMPORTANT, "SSLv2 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 3:
+#if !defined(OPENSSL_NO_SSL3)
+        debugs(83, 5, "Using SSLv3.");
+        return SSLv3_client_method();
+#else
+        debugs(83, DBG_IMPORTANT, "SSLv3 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 4:
+        debugs(83, 5, "Using TLSv1.");
+        return TLSv1_client_method();
+        break;
+
+    case 5:
+#if OPENSSL_VERSION_NUMBER >= 0x10001000L  // NP: not sure exactly which sub-version yet.
+        debugs(83, 5, "Using TLSv1.1.");
+        return TLSv1_1_client_method();
+#else
+        debugs(83, DBG_IMPORTANT, "TLSv1.1 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 6:
+#if OPENSSL_VERSION_NUMBER >= 0x10001000L // NP: not sure exactly which sub-version yet.
+        debugs(83, 5, "Using TLSv1.2");
+        return TLSv1_2_client_method();
+#else
+        debugs(83, DBG_IMPORTANT, "TLSv1.2 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 1:
+
+    default:
+        debugs(83, 5, "Using SSLv2/SSLv3.");
+        return SSLv23_client_method();
+        break;
+    }
+
+    //Not reached
+    return NULL;
+}
+
+const SSL_METHOD *
+Ssl::serverMethod(int version)
+{
+    switch (version) {
+
+    case 2:
+#if !defined(OPENSSL_NO_SSL2)
+        debugs(83, 5, "Using SSLv2.");
+        return SSLv2_server_method();
+#else
+        debugs(83, DBG_IMPORTANT, "SSLv2 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 3:
+#if !defined(OPENSSL_NO_SSL3)
+        debugs(83, 5, "Using SSLv3.");
+        return SSLv3_server_method();
+#else
+        debugs(83, DBG_IMPORTANT, "SSLv3 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 4:
+        debugs(83, 5, "Using TLSv1.");
+        return TLSv1_server_method();
+        break;
+
+    case 5:
+#if OPENSSL_VERSION_NUMBER >= 0x10001000L  // NP: not sure exactly which sub-version yet.
+        debugs(83, 5, "Using TLSv1.1.");
+        return TLSv1_1_server_method();
+#else
+        debugs(83, DBG_IMPORTANT, "TLSv1.1 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 6:
+#if OPENSSL_VERSION_NUMBER >= 0x10001000L // NP: not sure exactly which sub-version yet.
+        debugs(83, 5, "Using TLSv1.2");
+        return TLSv1_2_server_method();
+#else
+        debugs(83, DBG_IMPORTANT, "TLSv1.2 is not available in this Proxy.");
+        return NULL;
+#endif
+        break;
+
+    case 1:
+
+    default:
+        debugs(83, 5, "Using SSLv2/SSLv3.");
+        return SSLv23_server_method();
+        break;
+    }
+
+    //Not reached
+    return NULL;
+}
+
+#if defined(TLSEXT_TYPE_next_proto_neg)
+//Dummy next_proto_neg callback
+static int
+ssl_next_proto_cb(SSL *s, unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg)
+{
+    static const unsigned char supported_protos[] = {8, 'h','t','t', 'p', '/', '1', '.', '1'};
+    (void)SSL_select_next_proto(out, outlen, in, inlen, supported_protos, sizeof(supported_protos));
+    return SSL_TLSEXT_ERR_OK;
+}
+#endif
+
 SSL_CTX *
 sslCreateClientContext(const char *certfile, const char *keyfile, int version, const char *cipher, const char *options, const char *flags, const char *CAfile, const char *CApath, const char *CRLfile)
 {
@@ -1007,55 +1245,8 @@ sslCreateClientContext(const char *certfile, const char *keyfile, int version, c
     if (!certfile)
         certfile = keyfile;
 
-    switch (version) {
-
-    case 2:
-#ifndef OPENSSL_NO_SSL2
-        debugs(83, 5, "Using SSLv2.");
-        method = SSLv2_client_method();
-#else
-        debugs(83, DBG_IMPORTANT, "SSLv2 is not available in this Proxy.");
+    if (!(method = Ssl::method(version)))
         return NULL;
-#endif
-        break;
-
-    case 3:
-        debugs(83, 5, "Using SSLv3.");
-        method = SSLv3_client_method();
-        break;
-
-    case 4:
-        debugs(83, 5, "Using TLSv1.");
-        method = TLSv1_client_method();
-        break;
-
-    case 5:
-#if OPENSSL_VERSION_NUMBER >= 0x10001000L  // NP: not sure exactly which sub-version yet.
-        debugs(83, 5, "Using TLSv1.1.");
-        method = TLSv1_1_client_method();
-#else
-        debugs(83, DBG_IMPORTANT, "TLSv1.1 is not available in this Proxy.");
-        return NULL;
-#endif
-        break;
-
-    case 6:
-#if OPENSSL_VERSION_NUMBER >= 0x10001000L // NP: not sure exactly which sub-version yet.
-        debugs(83, 5, "Using TLSv1.2");
-        method = TLSv1_2_client_method();
-#else
-        debugs(83, DBG_IMPORTANT, "TLSv1.2 is not available in this Proxy.");
-        return NULL;
-#endif
-        break;
-
-    case 1:
-
-    default:
-        debugs(83, 5, "Using SSLv2/SSLv3.");
-        method = SSLv23_client_method();
-        break;
-    }
 
     sslContext = SSL_CTX_new(method);
 
@@ -1066,6 +1257,10 @@ sslCreateClientContext(const char *certfile, const char *keyfile, int version, c
     }
 
     SSL_CTX_set_options(sslContext, Ssl::parse_options(options));
+
+#if defined(SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS)
+    SSL_CTX_set_info_callback(sslContext, ssl_info_cb);
+#endif
 
     if (cipher) {
         debugs(83, 5, "Using chiper suite " << cipher << ".");
@@ -1141,6 +1336,9 @@ sslCreateClientContext(const char *certfile, const char *keyfile, int version, c
         debugs(83, DBG_IMPORTANT, "WARNING: Ignoring error setting default CA certificate location: " << ERR_error_string(ssl_error, NULL));
     }
 
+#if defined(TLSEXT_TYPE_next_proto_neg)
+    SSL_CTX_set_next_proto_select_cb(sslContext, &ssl_next_proto_cb, NULL);
+#endif
     return sslContext;
 }
 
@@ -1395,7 +1593,7 @@ Ssl::contextMethod(int version)
     switch (version) {
 
     case 2:
-#ifndef OPENSSL_NO_SSL2
+#if !defined(OPENSSL_NO_SSL2)
         debugs(83, 5, "Using SSLv2.");
         method = SSLv2_server_method();
 #else
@@ -1405,8 +1603,13 @@ Ssl::contextMethod(int version)
         break;
 
     case 3:
+#if !defined(OPENSSL_NO_SSL3)
         debugs(83, 5, "Using SSLv3.");
         method = SSLv3_server_method();
+#else
+        debugs(83, DBG_IMPORTANT, "SSLv3 is not available in this Proxy.");
+        return NULL;
+#endif
         break;
 
     case 4:
@@ -1446,8 +1649,8 @@ Ssl::contextMethod(int version)
 
 /// \ingroup ServerProtocolSSLInternal
 /// Create SSL context and apply ssl certificate and private key to it.
-static SSL_CTX *
-createSSLContext(Ssl::X509_Pointer & x509, Ssl::EVP_PKEY_Pointer & pkey, AnyP::PortCfg &port)
+SSL_CTX *
+Ssl::createSSLContext(Ssl::X509_Pointer & x509, Ssl::EVP_PKEY_Pointer & pkey, AnyP::PortCfg &port)
 {
     Ssl::SSL_CTX_Pointer sslContext(SSL_CTX_new(port.contextMethod));
 
@@ -1492,6 +1695,73 @@ Ssl::generateSslContext(CertificateProperties const &properties, AnyP::PortCfg &
         return NULL;
 
     return createSSLContext(cert, pkey, port);
+}
+
+void
+Ssl::chainCertificatesToSSLContext(SSL_CTX *sslContext, AnyP::PortCfg &port)
+{
+    assert(sslContext != NULL);
+    // Add signing certificate to the certificates chain
+    X509 *signingCert = port.signingCert.get();
+    if (SSL_CTX_add_extra_chain_cert(sslContext, signingCert)) {
+        // increase the certificate lock
+        CRYPTO_add(&(signingCert->references),1,CRYPTO_LOCK_X509);
+    } else {
+        const int ssl_error = ERR_get_error();
+        debugs(33, DBG_IMPORTANT, "WARNING: can not add signing certificate to SSL context chain: " << ERR_error_string(ssl_error, NULL));
+    }
+    Ssl::addChainToSslContext(sslContext, port.certsToChain.get());
+}
+
+void
+Ssl::configureUnconfiguredSslContext(SSL_CTX *sslContext, Ssl::CertSignAlgorithm signAlgorithm,AnyP::PortCfg &port)
+{
+    if (sslContext && signAlgorithm == Ssl::algSignTrusted) {
+        Ssl::chainCertificatesToSSLContext(sslContext, port);
+    }
+}
+
+bool
+Ssl::configureSSL(SSL *ssl, CertificateProperties const &properties, AnyP::PortCfg &port)
+{
+    Ssl::X509_Pointer cert;
+    Ssl::EVP_PKEY_Pointer pkey;
+    if (!generateSslCertificate(cert, pkey, properties))
+        return false;
+
+    if (!cert)
+        return false;
+
+    if (!pkey)
+        return false;
+
+    if (!SSL_use_certificate(ssl, cert.get()))
+        return false;
+
+    if (!SSL_use_PrivateKey(ssl, pkey.get()))
+        return false;
+
+    return true;
+}
+
+bool
+Ssl::configureSSLUsingPkeyAndCertFromMemory(SSL *ssl, const char *data, AnyP::PortCfg &port)
+{
+    Ssl::X509_Pointer cert;
+    Ssl::EVP_PKEY_Pointer pkey;
+    if (!readCertAndPrivateKeyFromMemory(cert, pkey, data))
+        return false;
+
+    if (!cert || !pkey)
+        return false;
+
+    if (!SSL_use_certificate(ssl, cert.get()))
+        return false;
+
+    if (!SSL_use_PrivateKey(ssl, pkey.get()))
+        return false;
+
+    return true;
 }
 
 bool Ssl::verifySslCertificate(SSL_CTX * sslContext, CertificateProperties const &properties)
@@ -1553,6 +1823,135 @@ void Ssl::addChainToSslContext(SSL_CTX *sslContext, STACK_OF(X509) *chain)
             const int ssl_error = ERR_get_error();
             debugs(83, DBG_IMPORTANT, "WARNING: can not add certificate to SSL context chain: " << ERR_error_string(ssl_error, NULL));
         }
+    }
+}
+
+bool
+Ssl::loadCerts(const char *certsFile, Ssl::CertsIndexedList &list)
+{
+    BIO *in = BIO_new_file(certsFile, "r");
+    if (!in) {
+        debugs(83, DBG_IMPORTANT, "Failed to open '" << certsFile << "' to load certificates");
+        return false;
+    }
+
+    X509 *aCert;
+    while((aCert = PEM_read_bio_X509(in, NULL, NULL, NULL))) {
+        static char buffer[2048];
+        X509_NAME_oneline(X509_get_subject_name(aCert), buffer, sizeof(buffer));
+        list.insert(std::pair<SBuf, X509 *>(SBuf(buffer), aCert));
+    }
+    debugs(83, 4, "Loaded " << list.size() << " certificates from file: '" << certsFile << "'");
+    BIO_free(in);
+    return true;
+}
+
+/// quickly find a certificate with a given issuer in Ssl::CertsIndexedList.
+static X509 *
+findCertByIssuerFast(X509_STORE_CTX *ctx, Ssl::CertsIndexedList &list, X509 *cert)
+{
+    static char buffer[2048];
+
+    if (X509_NAME *issuerName = X509_get_issuer_name(cert))
+        X509_NAME_oneline(issuerName, buffer, sizeof(buffer));
+    else
+        return NULL;
+
+    typedef std::pair<Ssl::CertsIndexedList::iterator, Ssl::CertsIndexedList::iterator> Pair;
+    const Pair ret = list.equal_range(SBuf(buffer));
+    for (Ssl::CertsIndexedList::iterator it = ret.first; it != ret.second; ++it) {
+        X509 *issuer = it->second;
+        if (ctx->check_issued(ctx, cert, issuer)) {
+            return issuer;
+        }
+    }
+    return NULL;
+}
+
+/// slowly find a certificate with a given issuer using linear search
+static X509 *
+findCertByIssuerSlowly(X509_STORE_CTX *ctx, STACK_OF(X509) *sk, X509 *cert)
+{
+    const int skItemsNum = sk_X509_num(sk);
+    for (int i = 0; i < skItemsNum; ++i) {
+        X509 *issuer = sk_X509_value(sk, i);
+        if (ctx->check_issued(ctx, cert, issuer))
+            return issuer;
+    }
+    return NULL;
+}
+
+/// add missing issuer certificates to untrustedCerts
+static void
+completeIssuers(X509_STORE_CTX *ctx, STACK_OF(X509) *untrustedCerts)
+{
+    debugs(83, 2,  "completing " << sk_X509_num(untrustedCerts) << " OpenSSL untrusted certs using " << SquidUntrustedCerts.size() << " configured untrusted certificates");
+
+    int depth = ctx->param->depth;
+    X509 *current = ctx->cert;
+    int i = 0;
+    for (i = 0; current && (i < depth); ++i) {
+        if (ctx->check_issued(ctx, current, current)) {
+            // either ctx->cert is itself self-signed or untrustedCerts
+            // aready contain the self-signed current certificate
+            break;
+        }
+
+        // untrustedCerts is short, not worth indexing
+        X509 *issuer = findCertByIssuerSlowly(ctx, untrustedCerts, current);
+        if (!issuer) {
+            if ((issuer = findCertByIssuerFast(ctx, SquidUntrustedCerts, current)))
+                sk_X509_push(untrustedCerts, issuer);
+        }
+        current = issuer;
+    }
+
+    if (i >= depth)
+        debugs(83, 2,  "exceeded the maximum certificate chain length: " << depth);
+}
+
+/// OpenSSL certificate validation callback.
+static int
+untrustedToStoreCtx_cb(X509_STORE_CTX *ctx,void *data)
+{
+    debugs(83, 4,  "Try to use pre-downloaded intermediate certificates\n");
+
+    // OpenSSL already maintains ctx->untrusted but we cannot modify
+    // internal OpenSSL list directly. We have to give OpenSSL our own
+    // list, but it must include certificates on the OpenSSL ctx->untrusted
+    STACK_OF(X509) *oldUntrusted = ctx->untrusted;
+    STACK_OF(X509) *sk = sk_X509_dup(oldUntrusted); // oldUntrusted is always not NULL
+    completeIssuers(ctx, sk);
+    X509_STORE_CTX_set_chain(ctx, sk); // No locking/unlocking, just sets ctx->untrusted
+    int ret = X509_verify_cert(ctx);
+    X509_STORE_CTX_set_chain(ctx, oldUntrusted); // Set back the old untrusted list
+    sk_X509_free(sk); // Release sk list
+    return ret;
+}
+
+void
+Ssl::useSquidUntrusted(SSL_CTX *sslContext)
+{
+    if (SquidUntrustedCerts.size() > 0)
+        SSL_CTX_set_cert_verify_callback(sslContext, untrustedToStoreCtx_cb, NULL);
+    else
+        SSL_CTX_set_cert_verify_callback(sslContext, NULL, NULL);
+}
+
+bool
+Ssl::loadSquidUntrusted(const char *path)
+{
+    return Ssl::loadCerts(path, SquidUntrustedCerts);
+}
+
+void
+Ssl::unloadSquidUntrusted()
+{
+    if (SquidUntrustedCerts.size()) {
+        for (Ssl::CertsIndexedList::iterator it = SquidUntrustedCerts.begin(); it != SquidUntrustedCerts.end(); ++it) {
+            X509_free(it->second);
+        }
+        SquidUntrustedCerts.clear();
     }
 }
 
@@ -1636,6 +2035,53 @@ bool Ssl::generateUntrustedCert(X509_Pointer &untrustedCert, EVP_PKEY_Pointer &u
     return Ssl::generateSslCertificate(untrustedCert, untrustedPkey, certProperties);
 }
 
+SSL *
+SslCreate(SSL_CTX *sslContext, const int fd, Ssl::Bio::Type type, const char *squidCtx)
+{
+    if (fd < 0) {
+        debugs(83, DBG_IMPORTANT, "Gone connection");
+        return NULL;
+    }
+
+    const char *errAction = NULL;
+    int errCode = 0;
+    if (SSL *ssl = SSL_new(sslContext)) {
+        // without BIO, we would call SSL_set_fd(ssl, fd) instead
+        if (BIO *bio = Ssl::Bio::Create(fd, type)) {
+            Ssl::Bio::Link(ssl, bio); // cannot fail
+
+            fd_table[fd].ssl = ssl;
+            fd_table[fd].read_method = &ssl_read_method;
+            fd_table[fd].write_method = &ssl_write_method;
+            fd_note(fd, squidCtx);
+
+            return ssl;
+        }
+        errCode = ERR_get_error();
+        errAction = "failed to initialize I/O";
+        SSL_free(ssl);
+    } else {
+        errCode = ERR_get_error();
+        errAction = "failed to allocate handle";
+    }
+
+    debugs(83, DBG_IMPORTANT, "ERROR: " << squidCtx << ' ' << errAction <<
+           ": " << ERR_error_string(errCode, NULL));
+    return NULL;
+}
+
+SSL *
+Ssl::CreateClient(SSL_CTX *sslContext, const int fd, const char *squidCtx)
+{
+    return SslCreate(sslContext, fd, Ssl::Bio::BIO_TO_SERVER, squidCtx);
+}
+
+SSL *
+Ssl::CreateServer(SSL_CTX *sslContext, const int fd, const char *squidCtx)
+{
+    return SslCreate(sslContext, fd, Ssl::Bio::BIO_TO_CLIENT, squidCtx);
+}
+
 Ssl::CertError::CertError(ssl_error_t anErr, X509 *aCert): code(anErr)
 {
     cert.resetAndLock(aCert);
@@ -1666,4 +2112,199 @@ Ssl::CertError::operator != (const CertError &ce) const
     return code != ce.code || cert.get() != ce.cert.get();
 }
 
-#endif /* USE_SSL */
+static int
+store_session_cb(SSL *ssl, SSL_SESSION *session)
+{
+    if (!SslSessionCache)
+        return 0;
+
+    debugs(83, 5, "Request to store SSL Session ");
+
+    SSL_SESSION_set_timeout(session, Config.SSL.session_ttl);
+
+    unsigned char *id = session->session_id;
+    unsigned int idlen = session->session_id_length;
+    unsigned char key[MEMMAP_SLOT_KEY_SIZE];
+    // Session ids are of size 32bytes. They should always fit to a
+    // MemMap::Slot::key
+    assert(idlen <= MEMMAP_SLOT_KEY_SIZE);
+    memset(key, 0, sizeof(key));
+    memcpy(key, id, idlen);
+    int pos;
+    Ipc::MemMap::Slot *slotW = SslSessionCache->openForWriting((const cache_key*)key, pos);
+    if (slotW) {
+        int lenRequired =  i2d_SSL_SESSION(session, NULL);
+        if (lenRequired <  MEMMAP_SLOT_DATA_SIZE) {
+            unsigned char *p = (unsigned char *)slotW->p;
+            lenRequired = i2d_SSL_SESSION(session, &p);
+            slotW->set(key, NULL, lenRequired, squid_curtime + Config.SSL.session_ttl);
+        }
+        SslSessionCache->closeForWriting(pos);
+        debugs(83, 5, "wrote an ssl session entry of size " << lenRequired << " at pos " << pos);
+    }
+    return 0;
+}
+
+static void
+remove_session_cb(SSL_CTX *, SSL_SESSION *sessionID)
+{
+    if (!SslSessionCache)
+        return ;
+
+    debugs(83, 5, "Request to remove corrupted or not valid SSL Session ");
+    int pos;
+    Ipc::MemMap::Slot const *slot = SslSessionCache->openForReading((const cache_key*)sessionID, pos);
+    if (slot == NULL)
+        return;
+    SslSessionCache->closeForReading(pos);
+    // TODO:
+    // What if we are not able to remove the session?
+    // Maybe schedule a job to remove it later?
+    // For now we just have an invalid entry in cache until will be expired
+    // The openSSL will reject it when we try to use it
+    SslSessionCache->free(pos);
+}
+
+static SSL_SESSION *
+get_session_cb(SSL *, unsigned char *sessionID, int len, int *copy)
+{
+    if (!SslSessionCache)
+        return NULL;
+
+    SSL_SESSION *session = NULL;
+    const unsigned int *p;
+    p = (unsigned int *)sessionID;
+    debugs(83, 5, "Request to search for SSL Session of len:" <<
+           len << p[0] << ":" << p[1]);
+
+    int pos;
+    Ipc::MemMap::Slot const *slot = SslSessionCache->openForReading((const cache_key*)sessionID, pos);
+    if (slot != NULL) {
+        if (slot->expire > squid_curtime) {
+            const unsigned char *ptr = slot->p;
+            session = d2i_SSL_SESSION(NULL, &ptr, slot->pSize);
+            debugs(83, 5, "Session retrieved from cache at pos " << pos);
+        } else
+            debugs(83, 5, "Session in cache expired");
+        SslSessionCache->closeForReading(pos);
+    }
+
+    if (!session)
+        debugs(83, 5, "Failed to retrieved from cache\n");
+
+    // With the parameter copy the callback can require the SSL engine
+    // to increment the reference count of the SSL_SESSION object, Normally
+    // the reference count is not incremented and therefore the session must
+    // not be explicitly freed with SSL_SESSION_free(3).
+    *copy = 0;
+    return session;
+}
+
+static void
+setSessionCallbacks(SSL_CTX *ctx)
+{
+    if (SslSessionCache) {
+        SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER|SSL_SESS_CACHE_NO_INTERNAL);
+        SSL_CTX_sess_set_new_cb(ctx, store_session_cb);
+        SSL_CTX_sess_set_remove_cb(ctx, remove_session_cb);
+        SSL_CTX_sess_set_get_cb(ctx, get_session_cb);
+    }
+}
+
+static bool
+isSslServer()
+{
+    if (HttpsPortList != NULL)
+        return true;
+
+    for (AnyP::PortCfgPointer s = HttpPortList; s != NULL; s = s->next) {
+        if (s->flags.tunnelSslBumping)
+            return true;
+    }
+
+    return false;
+}
+
+#define SSL_SESSION_ID_SIZE 32
+#define SSL_SESSION_MAX_SIZE 10*1024
+
+void
+Ssl::initialize_session_cache()
+{
+
+    if (!isSslServer()) //no need to configure ssl session cache.
+        return;
+
+    // Check if the MemMap keys and data are enough big to hold
+    // session ids and session data
+    assert(SSL_SESSION_ID_SIZE >= MEMMAP_SLOT_KEY_SIZE);
+    assert(SSL_SESSION_MAX_SIZE >= MEMMAP_SLOT_DATA_SIZE);
+
+    int configuredItems = ::Config.SSL.sessionCacheSize / sizeof(Ipc::MemMap::Slot);
+    if (IamWorkerProcess() && configuredItems)
+        SslSessionCache = new Ipc::MemMap(SslSessionCacheName);
+    else {
+        SslSessionCache = NULL;
+        return;
+    }
+
+    for (AnyP::PortCfgPointer s = HttpsPortList; s != NULL; s = s->next) {
+        if (s->staticSslContext.get() != NULL)
+            setSessionCallbacks(s->staticSslContext.get());
+    }
+
+    for (AnyP::PortCfgPointer s = HttpPortList; s != NULL; s = s->next) {
+        if (s->staticSslContext.get() != NULL)
+            setSessionCallbacks(s->staticSslContext.get());
+    }
+}
+
+void
+destruct_session_cache()
+{
+    delete SslSessionCache;
+}
+
+/// initializes shared memory segments used by MemStore
+class SharedSessionCacheRr: public Ipc::Mem::RegisteredRunner
+{
+public:
+    /* RegisteredRunner API */
+    SharedSessionCacheRr(): owner(NULL) {}
+    virtual void useConfig();
+    virtual ~SharedSessionCacheRr();
+
+protected:
+    virtual void create();
+
+private:
+    Ipc::MemMap::Owner *owner;
+};
+
+RunnerRegistrationEntry(SharedSessionCacheRr);
+
+void
+SharedSessionCacheRr::useConfig()
+{
+    Ipc::Mem::RegisteredRunner::useConfig();
+}
+
+void
+SharedSessionCacheRr::create()
+{
+    if (!isSslServer()) //no need to configure ssl session cache.
+        return;
+
+    int items;
+    items = Config.SSL.sessionCacheSize / sizeof(Ipc::MemMap::Slot);
+    if (items)
+        owner =  Ipc::MemMap::Init(SslSessionCacheName, items);
+}
+
+SharedSessionCacheRr::~SharedSessionCacheRr()
+{
+    delete owner;
+}
+
+#endif /* USE_OPENSSL */
+

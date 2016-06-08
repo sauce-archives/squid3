@@ -1,4 +1,12 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * -----------------------------------------------------------------------------
  *
  * Author: Markus Moeller (markus_moeller at compuserve.com)
@@ -21,33 +29,19 @@
  *
  * -----------------------------------------------------------------------------
  */
-/*
- * Hosted at http://sourceforge.net/projects/squidkerbauth
- */
 
 #include "squid.h"
 #include "base64.h"
 
-#if HAVE_STRING_H
-#include <string.h>
-#endif
-#if HAVE_STDIO_H
-#include <stdio.h>
-#endif
-#if HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+#include <cerrno>
+#include <cstring>
+#include <cstdlib>
+#include <ctime>
 #if HAVE_NETDB_H
 #include <netdb.h>
 #endif
 #if HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-#if HAVE_TIME_H
-#include <time.h>
-#endif
-#if HAVE_ERRNO_H
-#include <errno.h>
 #endif
 
 #if !defined(HAVE_DECL_XMALLOC) || !HAVE_DECL_XMALLOC
@@ -407,3 +401,4 @@ main(int argc, char *const argv[])
 
     return 1;
 }
+

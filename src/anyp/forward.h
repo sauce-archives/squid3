@@ -1,13 +1,23 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef _SQUID_SRC_ANYP_FORWARD_H
 #define _SQUID_SRC_ANYP_FORWARD_H
 
-#include "base/CbcPointer.h"
+#include "base/RefCount.h"
 
 namespace AnyP
 {
 
 class PortCfg;
-typedef CbcPointer<PortCfg> PortCfgPointer;
+typedef RefCount<PortCfg> PortCfgPointer;
+
+class UriScheme;
 
 } // namespace AnyP
 

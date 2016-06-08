@@ -1,6 +1,12 @@
 /*
- * DEBUG: section 93    ICAP (RFC 3507) Client
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 93    ICAP (RFC 3507) Client */
 
 #include "squid.h"
 #include "adaptation/icap/Config.h"
@@ -10,6 +16,7 @@
 #include "comm.h"
 #include "comm/Connection.h"
 #include "comm/ConnOpener.h"
+#include "comm/Read.h"
 #include "comm/Write.h"
 #include "CommCalls.h"
 #include "err_detail_type.h"
@@ -25,32 +32,37 @@
 #include "SquidConfig.h"
 #include "SquidTime.h"
 
-//CBDATA_NAMESPACED_CLASS_INIT(Adaptation::Icap, Xaction);
-
 Adaptation::Icap::Xaction::Xaction(const char *aTypeName, Adaptation::Icap::ServiceRep::Pointer &aService):
-        AsyncJob(aTypeName),
-        Adaptation::Initiate(aTypeName),
-        icapRequest(NULL),
-        icapReply(NULL),
-        attempts(0),
-        connection(NULL),
-        theService(aService),
-        commBuf(NULL), commBufSize(0),
-        commEof(false),
-        reuseConnection(true),
-        isRetriable(true),
-        isRepeatable(true),
-        ignoreLastWrite(false),
-        connector(NULL), reader(NULL), writer(NULL), closer(NULL),
-        alep(new AccessLogEntry),
-        al(*alep),
-        cs(NULL)
+    AsyncJob(aTypeName),
+    Adaptation::Initiate(aTypeName),
+    icapRequest(NULL),
+    icapReply(NULL),
+    attempts(0),
+    connection(NULL),
+    theService(aService),
+    commBuf(NULL),
+    commBufSize(0),
+    commEof(false),
+    reuseConnection(true),
+    isRetriable(true),
+    isRepeatable(true),
+    ignoreLastWrite(false),
+    stopReason(NULL),
+    connector(NULL),
+    reader(NULL),
+    writer(NULL),
+    closer(NULL),
+    alep(new AccessLogEntry),
+    al(*alep),
+    cs(NULL)
 {
     debugs(93,3, typeName << " constructed, this=" << this <<
            " [icapx" << id << ']'); // we should not call virtual status() here
     icapRequest = new HttpRequest;
     HTTPMSGLOCK(icapRequest);
     icap_tr_start = current_time;
+    memset(&icap_tio_start, 0, sizeof(icap_tio_start));
+    memset(&icap_tio_finish, 0, sizeof(icap_tio_finish));
 }
 
 Adaptation::Icap::Xaction::~Xaction()
@@ -120,7 +132,7 @@ Adaptation::Icap::Xaction::openConnection()
         CbcPointer<Xaction> self(this);
         Dialer dialer(self, &Adaptation::Icap::Xaction::noteCommConnected);
         dialer.params.conn = connection;
-        dialer.params.flag = COMM_OK;
+        dialer.params.flag = Comm::OK;
         // fake other parameters by copying from the existing connection
         connector = asyncCall(93,3, "Adaptation::Icap::Xaction::noteCommConnected", dialer);
         ScheduleCallHere(connector);
@@ -152,7 +164,7 @@ Adaptation::Icap::Xaction::dnsLookupDone(const ipcache_addrs *ia)
         CbcPointer<Xaction> self(this);
         Dialer dialer(self, &Adaptation::Icap::Xaction::noteCommConnected);
         dialer.params.conn = connection;
-        dialer.params.flag = COMM_ERROR;
+        dialer.params.flag = Comm::COMM_ERROR;
         // fake other parameters by copying from the existing connection
         connector = asyncCall(93,3, "Adaptation::Icap::Xaction::noteCommConnected", dialer);
         ScheduleCallHere(connector);
@@ -172,7 +184,7 @@ Adaptation::Icap::Xaction::dnsLookupDone(const ipcache_addrs *ia)
     connector = JobCallback(93,3, ConnectDialer, this, Adaptation::Icap::Xaction::noteCommConnected);
     cs = new Comm::ConnOpener(connection, connector, TheConfig.connect_timeout(service().cfg().bypass));
     cs->setHost(s.cfg().host.termedBuf());
-    AsyncJob::Start(cs);
+    AsyncJob::Start(cs.get());
 }
 
 /*
@@ -185,7 +197,7 @@ Adaptation::Icap::Xaction::reusedConnection(void *data)
 {
     debugs(93, 5, HERE << "reused connection");
     Adaptation::Icap::Xaction *x = (Adaptation::Icap::Xaction*)data;
-    x->noteCommConnected(COMM_OK);
+    x->noteCommConnected(Comm::OK);
 }
 #endif
 
@@ -227,7 +239,7 @@ void Adaptation::Icap::Xaction::noteCommConnected(const CommConnectCbParams &io)
 {
     cs = NULL;
 
-    if (io.flag == COMM_TIMEOUT) {
+    if (io.flag == Comm::TIMEOUT) {
         handleCommTimedout();
         return;
     }
@@ -235,7 +247,7 @@ void Adaptation::Icap::Xaction::noteCommConnected(const CommConnectCbParams &io)
     Must(connector != NULL);
     connector = NULL;
 
-    if (io.flag != COMM_OK)
+    if (io.flag != Comm::OK)
         dieOnConnectionFailure(); // throws
 
     typedef CommCbMemFunT<Adaptation::Icap::Xaction, CommTimeoutCbParams> TimeoutDialer;
@@ -286,7 +298,7 @@ void Adaptation::Icap::Xaction::noteCommWrote(const CommIoCbParams &io)
         ignoreLastWrite = false;
         debugs(93, 7, HERE << "ignoring last write; status: " << io.flag);
     } else {
-        Must(io.flag == COMM_OK);
+        Must(io.flag == Comm::OK);
         al.icap.bytesSent += io.size;
         updateTimeout();
         handleCommWrote(io.size);
@@ -392,7 +404,7 @@ void Adaptation::Icap::Xaction::noteCommRead(const CommIoCbParams &io)
     Must(reader != NULL);
     reader = NULL;
 
-    Must(io.flag == COMM_OK);
+    Must(io.flag == Comm::OK);
 
     if (!io.size) {
         commEof = true;
@@ -428,7 +440,7 @@ void Adaptation::Icap::Xaction::cancelRead()
 {
     if (reader != NULL) {
         Must(haveConnection());
-        comm_read_cancel(connection->fd, reader);
+        Comm::ReadCancel(connection->fd, reader);
         reader = NULL;
     }
 }
@@ -441,7 +453,7 @@ bool Adaptation::Icap::Xaction::parseHttpMsg(HttpMsg *msg)
     const bool parsed = msg->parse(&readBuf, commEof, &error);
     Must(parsed || !error); // success or need more data
 
-    if (!parsed) {	// need more data
+    if (!parsed) {  // need more data
         Must(mayReadMore());
         msg->reset();
         return false;
@@ -510,7 +522,7 @@ void Adaptation::Icap::Xaction::setOutcome(const Adaptation::Icap::XactOutcome &
 void Adaptation::Icap::Xaction::swanSong()
 {
     // kids should sing first and then call the parent method.
-    if (cs) {
+    if (cs.valid()) {
         debugs(93,6, HERE << id << " about to notify ConnOpener!");
         CallJobHere(93, 3, cs, Comm::ConnOpener, noteAbort);
         cs = NULL;
@@ -622,3 +634,4 @@ bool Adaptation::Icap::Xaction::fillVirginHttpHeader(MemBuf &buf) const
 {
     return false;
 }
+

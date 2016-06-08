@@ -1,10 +1,17 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 /* UNIX RFCNB (RFC1001/RFC1002) NetBIOS implementation
  *
  * Version 1.0
  * RFCNB Common Structures etc Defines
  *
  * Copyright (C) Richard Sharpe 1996
- *
  */
 
 /*
@@ -30,17 +37,18 @@
 extern "C" {
 #endif
 
-    /* A data structure we need */
+/* A data structure we need */
 
-    typedef struct RFCNB_Pkt {
+typedef struct RFCNB_Pkt {
 
-        char *data;             /* The data in this portion */
-        int len;
-        struct RFCNB_Pkt *next;
+    char *data;             /* The data in this portion */
+    int len;
+    struct RFCNB_Pkt *next;
 
-    } RFCNB_Pkt;
+} RFCNB_Pkt;
 
 #if defined(__cplusplus)
 }
 #endif
 #endif /* _RFCNB_RFCNB_COMMON_H */
+

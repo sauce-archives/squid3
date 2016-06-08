@@ -1,8 +1,17 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_SSL_HELPER_H
 #define SQUID_SSL_HELPER_H
 
+#include "base/AsyncJobCalls.h"
 #include "base/LruMap.h"
-#include "../helper.h"
+#include "helper/forward.h"
 #include "ssl/cert_validate_message.h"
 #include "ssl/crtd_message.h"
 
@@ -30,25 +39,30 @@ private:
 };
 #endif
 
+class PeerConnector;
 class CertValidationRequest;
 class CertValidationResponse;
 class CertValidationHelper
 {
 public:
+    typedef UnaryMemFunT<Ssl::PeerConnector, CertValidationResponse::Pointer> CbDialer;
+
     typedef void CVHCB(void *, Ssl::CertValidationResponse const &);
     static CertValidationHelper * GetInstance(); ///< Instance class.
     void Init(); ///< Init helper structure.
     void Shutdown(); ///< Shutdown helper structure.
     /// Submit crtd request message to external crtd server.
-    void sslSubmit(Ssl::CertValidationRequest const & request, CVHCB * callback, void *data);
+    void sslSubmit(Ssl::CertValidationRequest const & request, AsyncCall::Pointer &);
 private:
     CertValidationHelper();
     ~CertValidationHelper();
 
     helper * ssl_crt_validator; ///< helper for management of ssl_crtd.
 public:
-    static LruMap<Ssl::CertValidationResponse> *HelperCache; ///< cache for cert validation helper
+    typedef LruMap<Ssl::CertValidationResponse::Pointer, sizeof(Ssl::CertValidationResponse::Pointer) + sizeof(Ssl::CertValidationResponse)> LruCache;
+    static LruCache *HelperCache; ///< cache for cert validation helper
 };
 
 } //namespace Ssl
 #endif // SQUID_SSL_HELPER_H
+

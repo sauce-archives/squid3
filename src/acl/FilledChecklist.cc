@@ -1,37 +1,45 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "acl/FilledChecklist.h"
 #include "client_side.h"
 #include "comm/Connection.h"
 #include "comm/forward.h"
+#include "ExternalACLEntry.h"
 #include "HttpReply.h"
 #include "HttpRequest.h"
 #include "SquidConfig.h"
 #if USE_AUTH
-#include "auth/UserRequest.h"
 #include "auth/AclProxyAuth.h"
+#include "auth/UserRequest.h"
 #endif
 
 CBDATA_CLASS_INIT(ACLFilledChecklist);
 
 ACLFilledChecklist::ACLFilledChecklist() :
-        dst_peer(NULL),
-        dst_rdns(NULL),
-        request (NULL),
-        reply (NULL),
+    dst_peer(NULL),
+    dst_rdns(NULL),
+    request (NULL),
+    reply (NULL),
 #if USE_AUTH
-        auth_user_request (NULL),
+    auth_user_request (NULL),
 #endif
 #if SQUID_SNMP
-        snmp_community(NULL),
+    snmp_community(NULL),
 #endif
-#if USE_SSL
-        sslErrors(NULL),
+#if USE_OPENSSL
+    sslErrors(NULL),
 #endif
-        extacl_entry (NULL),
-        conn_(NULL),
-        fd_(-1),
-        destinationDomainChecked_(false),
-        sourceDomainChecked_(false)
+    conn_(NULL),
+    fd_(-1),
+    destinationDomainChecked_(false),
+    sourceDomainChecked_(false)
 {
     my_addr.setEmpty();
     src_addr.setEmpty();
@@ -45,16 +53,13 @@ ACLFilledChecklist::~ACLFilledChecklist()
 
     safe_free(dst_rdns); // created by xstrdup().
 
-    if (extacl_entry)
-        cbdataReferenceDone(extacl_entry);
-
     HTTPMSGUNLOCK(request);
 
     HTTPMSGUNLOCK(reply);
 
     cbdataReferenceDone(conn_);
 
-#if USE_SSL
+#if USE_OPENSSL
     cbdataReferenceDone(sslErrors);
 #endif
 
@@ -64,7 +69,7 @@ ACLFilledChecklist::~ACLFilledChecklist()
 ConnStateData *
 ACLFilledChecklist::conn() const
 {
-    return  conn_;
+    return cbdataReferenceValid(conn_) ? conn_ : NULL;
 }
 
 void
@@ -79,13 +84,15 @@ ACLFilledChecklist::conn(ConnStateData *aConn)
 int
 ACLFilledChecklist::fd() const
 {
-    return (conn_ != NULL && conn_->clientConnection != NULL) ? conn_->clientConnection->fd : fd_;
+    const ConnStateData *c = conn();
+    return (c != NULL && c->clientConnection != NULL) ? c->clientConnection->fd : fd_;
 }
 
 void
 ACLFilledChecklist::fd(int aDescriptor)
 {
-    assert(!conn() || conn()->clientConnection == NULL || conn()->clientConnection->fd == aDescriptor);
+    const ConnStateData *c = conn();
+    assert(!c || !c->clientConnection || c->clientConnection->fd == aDescriptor);
     fd_ = aDescriptor;
 }
 
@@ -130,24 +137,23 @@ ACLFilledChecklist::markSourceDomainChecked()
  *    checkCallback() will delete the list (i.e., self).
  */
 ACLFilledChecklist::ACLFilledChecklist(const acl_access *A, HttpRequest *http_request, const char *ident):
-        dst_peer(NULL),
-        dst_rdns(NULL),
-        request(NULL),
-        reply(NULL),
+    dst_peer(NULL),
+    dst_rdns(NULL),
+    request(NULL),
+    reply(NULL),
 #if USE_AUTh
-        auth_user_request(NULL),
+    auth_user_request(NULL),
 #endif
 #if SQUID_SNMP
-        snmp_community(NULL),
+    snmp_community(NULL),
 #endif
-#if USE_SSL
-        sslErrors(NULL),
+#if USE_OPENSSL
+    sslErrors(NULL),
 #endif
-        extacl_entry (NULL),
-        conn_(NULL),
-        fd_(-1),
-        destinationDomainChecked_(false),
-        sourceDomainChecked_(false)
+    conn_(NULL),
+    fd_(-1),
+    destinationDomainChecked_(false),
+    sourceDomainChecked_(false)
 {
     my_addr.setEmpty();
     src_addr.setEmpty();
@@ -178,3 +184,4 @@ ACLFilledChecklist::ACLFilledChecklist(const acl_access *A, HttpRequest *http_re
         xstrncpy(rfc931, ident, USER_IDENT_SZ);
 #endif
 }
+

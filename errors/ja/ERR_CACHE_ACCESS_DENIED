@@ -1,7 +1,8 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>エラー: キャッシュにアクセスを拒否されました。</title>
+<title>エラー: キャッシュへのアクセスを拒否されました。</title>
 <style type="text/css"><!-- 
  %l
 
@@ -17,13 +18,13 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>URL: <a href="%U">%U</a> の取得中に以下のエラーが発生しました。</p>
 
 <blockquote id="error">
 <p><b>キャッシュへのアクセスを拒否されました．</b></p>
 </blockquote>
 
-<p>申し訳ありませんが、あなた自身の認証を済ませるまで、このキャッシュに %U をリクエストすることは現在許可されていません。</p>
+<p>申し訳ありませんが、あなた自身を認証するまで、このキャッシュは %U の要求を許可しません。</p>
 
 <p>Please contact the <a href="mailto:%w%W">cache administrator</a> if you have difficulties authenticating yourself.</p>
 

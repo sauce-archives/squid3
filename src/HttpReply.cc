@@ -1,35 +1,12 @@
-
 /*
- * DEBUG: section 58    HTTP Reply (Response)
- * AUTHOR: Alex Rousskov
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 58    HTTP Reply (Response) */
 
 #include "squid.h"
 #include "acl/AclSizeLimit.h"
@@ -82,8 +59,8 @@ httpReplyInitModule(void)
 }
 
 HttpReply::HttpReply() : HttpMsg(hoReply), date (0), last_modified (0),
-        expires (0), surrogate_control (NULL), content_range (NULL), keep_alive (0),
-        protoPrefix("HTTP/"), bodySizeMax(-2)
+    expires (0), surrogate_control (NULL), content_range (NULL), keep_alive (0),
+    protoPrefix("HTTP/"), bodySizeMax(-2)
 {
     init();
 }
@@ -173,7 +150,6 @@ HttpReply::make304() const
     rv->last_modified = last_modified;
     rv->expires = expires;
     rv->content_type = content_type;
-    /* rv->cache_control */
     /* rv->content_range */
     /* rv->keep_alive */
     rv->sline.set(Http::ProtocolVersion(1,1), Http::scNotModified, NULL);
@@ -181,6 +157,8 @@ HttpReply::make304() const
     for (t = 0; ImsEntries[t] != HDR_OTHER; ++t)
         if ((e = header.findEntry(ImsEntries[t])))
             rv->header.addEntry(e->clone());
+
+    rv->putCc(cache_control);
 
     /* rv->body */
     return rv;
@@ -221,7 +199,7 @@ HttpReply::setHeaders(Http::StatusCode status, const char *reason,
     if (expiresTime >= 0)
         hdr->putTime(HDR_EXPIRES, expiresTime);
 
-    if (lmt > 0)		/* this used to be lmt != 0 @?@ */
+    if (lmt > 0)        /* this used to be lmt != 0 @?@ */
         hdr->putTime(HDR_LAST_MODIFIED, lmt);
 
     date = squid_curtime;
@@ -270,7 +248,7 @@ HttpReply::validatorsMatch(HttpReply const * otherRep) const
 
     two = otherRep->header.getStrOrList(HDR_ETAG);
 
-    if (one.undefined() || two.undefined() || one.caseCmp(two)!=0 ) {
+    if (one.size()==0 || two.size()==0 || one.caseCmp(two)!=0 ) {
         one.clean();
         two.clean();
         return 0;
@@ -284,7 +262,7 @@ HttpReply::validatorsMatch(HttpReply const * otherRep) const
 
     two = otherRep->header.getStrOrList(HDR_CONTENT_MD5);
 
-    if (one.undefined() || two.undefined() || one.caseCmp(two) != 0 ) {
+    if (one.size()==0 || two.size()==0 || one.caseCmp(two)!=0 ) {
         one.clean();
         two.clean();
         return 0;
@@ -416,7 +394,7 @@ HttpReply::bodySize(const HttpRequestMethod& method) const
     else if (method.id() == Http::METHOD_HEAD)
         return 0;
     else if (sline.status() == Http::scOkay)
-        (void) 0;		/* common case, continue */
+        (void) 0;       /* common case, continue */
     else if (sline.status() == Http::scNoContent)
         return 0;
     else if (sline.status() == Http::scNotModified)
@@ -604,7 +582,6 @@ HttpReply::clone() const
     rep->pstate = pstate;
     rep->body_pipe = body_pipe;
 
-    rep->protocol = protocol;
     // keep_alive is handled in hdrCacheInit()
     return rep;
 }
@@ -681,3 +658,4 @@ String HttpReply::removeStaleWarningValues(const String &value)
 
     return newValue;
 }
+

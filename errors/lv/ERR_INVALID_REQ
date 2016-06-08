@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>KĻŪDA: Pieprasītā adrese nav atrodama</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Nekorekts pieprasījums</b> notikusi kļūda mēģinot apstrādāt pieprasījumu:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>Dažas iespējamās problēmas ir:</p>
@@ -29,9 +30,9 @@ body
 <li id="missing-url"><p>Pazudis URL.</p></li>
 <li id="missing-protocol"><p>pietrūkst HTTP identifikators (HTTP/1.0).</p></li>
 <li><p>Pieprasījums ir par lielu.</p></li>
-<li><p></p></li>
+<li><p>Content-Length missing for POST or PUT requests.</p></li>
 <li><p>Neatļauts simbols adresē. Pasvītrojuma rakstzīme nav atļauta.</p></li>
-<li><p></p></li>
+<li><p>HTTP/1.1 <q>Expect:</q> feature is being asked from an HTTP/1.0 software.</p></li>
 </ul>
 
 <p>Jūsu kešatmiņas administrators ir <a href="mailto:%w%W">%w</a>.</p>

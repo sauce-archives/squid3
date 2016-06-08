@@ -1,10 +1,17 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 /* UNIX RFCNB (RFC1001/RFC1002) NetBIOS implementation
  *
  * Version 1.0
  * RFCNB Defines
  *
  * Copyright (C) Richard Sharpe 1996
- *
  */
 
 /*
@@ -153,3 +160,4 @@ extern int RFCNB_saved_errno;   /* Save this from point of error */
 #endif
 
 #endif /* _RFCNB_RFCNB_PRIV_H */
+

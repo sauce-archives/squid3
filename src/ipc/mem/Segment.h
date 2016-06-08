@@ -1,4 +1,9 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #ifndef SQUID_IPC_MEM_SEGMENT_H
@@ -6,6 +11,8 @@
 
 #include "base/RunnersRegistry.h"
 #include "SquidString.h"
+
+class SBuf;
 
 namespace Ipc
 {
@@ -36,6 +43,9 @@ public:
     /// common path of all segment names in path-based environments
     static const char *BasePath;
 
+    /// concatenates parts of a name to form a complete name (or its prefix)
+    static SBuf Name(const SBuf &prefix, const char *suffix);
+
 private:
 
     // not implemented
@@ -44,6 +54,7 @@ private:
 
 #if HAVE_SHM
 
+    bool createFresh();
     void attach();
     void detach();
     void unlink(); ///< unlink the segment
@@ -72,14 +83,14 @@ class RegisteredRunner: public ::RegisteredRunner
 {
 public:
     /* RegisteredRunner API */
-    virtual void run(const RunnerRegistry &r);
+    virtual void useConfig();
 
 protected:
     /// called when the runner should create a new memory segment
-    virtual void create(const RunnerRegistry &) = 0;
+    virtual void create() = 0;
     /// called when the runner should open a previously created segment,
     /// not needed if segments are opened in constructor or init methods
-    virtual void open(const RunnerRegistry &) {}
+    virtual void open() {}
 };
 
 } // namespace Mem
@@ -87,3 +98,4 @@ protected:
 } // namespace Ipc
 
 #endif /* SQUID_IPC_MEM_SEGMENT_H */
+

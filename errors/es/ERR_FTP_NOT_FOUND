@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERROR: El URL solicitado no se ha podido conseguir</title>
 <style type="text/css"><!-- 
@@ -21,13 +22,13 @@ body
 
 <p>Squid ha enviado el siguiente comando FTP:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%f</pre>
 </blockquote>
 
 <p>El servidor ha respondido con:</p>
 <blockquote id="sysmsg">
-<pre></pre>
-<pre></pre>
+<pre>%F</pre>
+<pre>%g</pre>
 </blockquote>
 
 <p>Esto podria ser causado por una URL del FTP con ruta absoluta (La cual no cumple con el RFC 1738). si esto es la causa, entonces el archivo puede ser buscado en <a href="%B">%B</a>.</p>

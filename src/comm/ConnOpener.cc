@@ -1,39 +1,44 @@
 /*
- * DEBUG: section 05    Socket Connection Opener
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 05    Socket Connection Opener */
 
 #include "squid.h"
 #include "CachePeer.h"
-#include "comm/ConnOpener.h"
-#include "comm/Connection.h"
-#include "comm/Loops.h"
 #include "comm.h"
+#include "comm/Connection.h"
+#include "comm/ConnOpener.h"
+#include "comm/Loops.h"
 #include "fd.h"
 #include "fde.h"
 #include "globals.h"
 #include "icmp/net_db.h"
-#include "ipcache.h"
+#include "ip/QosConfig.h"
 #include "ip/tools.h"
+#include "ipcache.h"
 #include "SquidConfig.h"
 #include "SquidTime.h"
 
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
+#include <cerrno>
 
 class CachePeer;
 
 CBDATA_NAMESPACED_CLASS_INIT(Comm, ConnOpener);
 
 Comm::ConnOpener::ConnOpener(Comm::ConnectionPointer &c, AsyncCall::Pointer &handler, time_t ctimeout) :
-        AsyncJob("Comm::ConnOpener"),
-        host_(NULL),
-        temporaryFd_(-1),
-        conn_(c),
-        callback_(handler),
-        totalTries_(0),
-        failRetries_(0),
-        deadline_(squid_curtime + static_cast<time_t>(ctimeout))
+    AsyncJob("Comm::ConnOpener"),
+    host_(NULL),
+    temporaryFd_(-1),
+    conn_(c),
+    callback_(handler),
+    totalTries_(0),
+    failRetries_(0),
+    deadline_(squid_curtime + static_cast<time_t>(ctimeout))
 {}
 
 Comm::ConnOpener::~ConnOpener()
@@ -64,7 +69,7 @@ Comm::ConnOpener::swanSong()
 {
     if (callback_ != NULL) {
         // inform the still-waiting caller we are dying
-        sendAnswer(COMM_ERR_CONNECT, 0, "Comm::ConnOpener::swanSong");
+        sendAnswer(Comm::ERR_CONNECT, 0, "Comm::ConnOpener::swanSong");
     }
 
     // did we abort with a temporary FD assigned?
@@ -101,7 +106,7 @@ Comm::ConnOpener::getHost() const
  * Pass the results back to the external handler.
  */
 void
-Comm::ConnOpener::sendAnswer(comm_err_t errFlag, int xerrno, const char *why)
+Comm::ConnOpener::sendAnswer(Comm::Flag errFlag, int xerrno, const char *why)
 {
     // only mark the address good/bad AFTER connect is finished.
     if (host_ != NULL) {
@@ -229,6 +234,7 @@ Comm::ConnOpener::start()
         conn_->local.setIPv4();
     }
 
+    conn_->noteStart();
     if (createFd())
         doConnect();
 }
@@ -255,11 +261,24 @@ Comm::ConnOpener::createFd()
     if (callback_ == NULL || callback_->canceled())
         return false;
 
-    temporaryFd_ = comm_openex(SOCK_STREAM, IPPROTO_TCP, conn_->local, conn_->flags, conn_->tos, conn_->nfmark, host_);
+    temporaryFd_ = comm_openex(SOCK_STREAM, IPPROTO_TCP, conn_->local, conn_->flags, host_);
     if (temporaryFd_ < 0) {
-        sendAnswer(COMM_ERR_CONNECT, 0, "Comm::ConnOpener::createFd");
+        sendAnswer(Comm::ERR_CONNECT, 0, "Comm::ConnOpener::createFd");
         return false;
     }
+
+    // Set TOS if needed.
+    if (conn_->tos &&
+            Ip::Qos::setSockTos(temporaryFd_, conn_->tos, conn_->remote.isIPv4() ? AF_INET : AF_INET6) < 0)
+        conn_->tos = 0;
+#if SO_MARK
+    if (conn_->nfmark &&
+            Ip::Qos::setSockNfmark(temporaryFd_, conn_->nfmark) < 0)
+        conn_->nfmark = 0;
+#endif
+
+    fd_table[temporaryFd_].tosToServer = conn_->tos;
+    fd_table[temporaryFd_].nfmarkToServer = conn_->nfmark;
 
     typedef CommCbMemFunT<Comm::ConnOpener, CommCloseCbParams> abortDialer;
     calls_.earlyAbort_ = JobCallback(5, 4, abortDialer, this, Comm::ConnOpener::earlyAbort);
@@ -306,7 +325,7 @@ Comm::ConnOpener::connected()
     Must(fd_table[conn_->fd].flags.open);
     fd_table[conn_->fd].local_addr = conn_->local;
 
-    sendAnswer(COMM_OK, 0, "Comm::ConnOpener::connected");
+    sendAnswer(Comm::OK, 0, "Comm::ConnOpener::connected");
 }
 
 /// Make an FD connection attempt.
@@ -320,13 +339,13 @@ Comm::ConnOpener::doConnect()
 
     switch (comm_connect_addr(temporaryFd_, conn_->remote) ) {
 
-    case COMM_INPROGRESS:
-        debugs(5, 5, HERE << conn_ << ": COMM_INPROGRESS");
+    case Comm::INPROGRESS:
+        debugs(5, 5, HERE << conn_ << ": Comm::INPROGRESS");
         Comm::SetSelect(temporaryFd_, COMM_SELECT_WRITE, Comm::ConnOpener::InProgressConnectRetry, new Pointer(this), 0);
         break;
 
-    case COMM_OK:
-        debugs(5, 5, HERE << conn_ << ": COMM_OK - connected");
+    case Comm::OK:
+        debugs(5, 5, HERE << conn_ << ": Comm::OK - connected");
         connected();
         break;
 
@@ -344,7 +363,7 @@ Comm::ConnOpener::doConnect()
         } else {
             // send ERROR back to the upper layer.
             debugs(5, 5, HERE << conn_ << ": * - ERR tried too many times already.");
-            sendAnswer(COMM_ERR_CONNECT, xerrno, "Comm::ConnOpener::doConnect");
+            sendAnswer(Comm::ERR_CONNECT, xerrno, "Comm::ConnOpener::doConnect");
         }
     }
     }
@@ -388,16 +407,16 @@ void
 Comm::ConnOpener::lookupLocalAddress()
 {
     struct addrinfo *addr = NULL;
-    Ip::Address::InitAddrInfo(addr);
+    Ip::Address::InitAddr(addr);
 
     if (getsockname(conn_->fd, addr->ai_addr, &(addr->ai_addrlen)) != 0) {
         debugs(50, DBG_IMPORTANT, "ERROR: Failed to retrieve TCP/UDP details for socket: " << conn_ << ": " << xstrerror());
-        Ip::Address::FreeAddrInfo(addr);
+        Ip::Address::FreeAddr(addr);
         return;
     }
 
     conn_->local = *addr;
-    Ip::Address::FreeAddrInfo(addr);
+    Ip::Address::FreeAddr(addr);
     debugs(5, 6, HERE << conn_);
 }
 
@@ -410,7 +429,7 @@ Comm::ConnOpener::earlyAbort(const CommCloseCbParams &io)
     debugs(5, 3, HERE << io.conn);
     calls_.earlyAbort_ = NULL;
     // NP: is closing or shutdown better?
-    sendAnswer(COMM_ERR_CLOSING, io.xerrno, "Comm::ConnOpener::earlyAbort");
+    sendAnswer(Comm::ERR_CLOSING, io.xerrno, "Comm::ConnOpener::earlyAbort");
 }
 
 /**
@@ -422,10 +441,10 @@ Comm::ConnOpener::timeout(const CommTimeoutCbParams &)
 {
     debugs(5, 5, HERE << conn_ << ": * - ERR took too long to receive response.");
     calls_.timeout_ = NULL;
-    sendAnswer(COMM_TIMEOUT, ETIMEDOUT, "Comm::ConnOpener::timeout");
+    sendAnswer(Comm::TIMEOUT, ETIMEDOUT, "Comm::ConnOpener::timeout");
 }
 
-/* Legacy Wrapper for the retry event after COMM_INPROGRESS
+/* Legacy Wrapper for the retry event after Comm::INPROGRESS
  * XXX: As soon as Comm::SetSelect() accepts Async calls we can use a ConnOpener::doConnect call
  */
 void
@@ -460,3 +479,4 @@ Comm::ConnOpener::DelayedConnectRetry(void *data)
     }
     delete ptr;
 }
+

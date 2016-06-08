@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef _SQUID_FORMAT_TOKEN_H
 #define _SQUID_FORMAT_TOKEN_H
 
@@ -57,7 +65,7 @@ public:
     bool space;
     bool zero;
     int divisor;    // class invariant: MUST NOT be zero.
-    Token *next;	/* todo: move from linked list to array */
+    Token *next;    /* todo: move from linked list to array */
 
 private:
     const char *scanForToken(TokenTableEntry const table[], const char *cur);
@@ -66,3 +74,4 @@ private:
 } // namespace Format
 
 #endif /* _SQUID_FORMAT_TOKEN_H */
+

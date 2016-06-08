@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERREUR : L'URL demandada a pas pogut èsser cargada</title>
 <style type="text/css"><!-- 
@@ -23,14 +24,14 @@ body
 <p><b>URL invalida</b></p>
 </blockquote>
 
-<p></p>
+<p>Some aspect of the requested URL is incorrect.</p>
 
 <p>Problèmas envisajables :</p>
 <ul>
-<li><p></p></li>
+<li><p>Missing or incorrect access protocol (should be <q>http://</q> or similar)</p></li>
 <li><p>Nom de maquina absent</p></li>
-<li><p></p></li>
-<li><p></p></li>
+<li><p>Illegal double-escape in the URL-Path</p></li>
+<li><p>Illegal character in hostname; underscores are not allowed.</p></li>
 </ul>
 
 <p>Vòstre administrator d'amagatal es <a href="mailto:%w">%w</a>.</p>

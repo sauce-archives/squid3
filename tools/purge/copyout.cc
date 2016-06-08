@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 // Author:  Jens-S. V?ckler <voeckler@rvs.uni-hannover.de>
 //
 // File:    copyout.cc
@@ -38,13 +46,10 @@
 #include "squid.h"
 #include "copyout.hh"
 
-//#include <assert.h>
-//#include <sys/types.h>
 #include <sys/stat.h>
-#include <stdio.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 #include <fcntl.h>
-#include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
 
@@ -273,3 +278,4 @@ copy_out( size_t filesize, size_t metasize, unsigned debug,
 
     BAUTZ(true);
 }
+

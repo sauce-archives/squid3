@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef _SQUID_SRC_HTTPPARSER_H
 #define _SQUID_SRC_HTTPPARSER_H
 
@@ -11,9 +19,8 @@
  *
  * Works on a raw character I/O buffer and tokenizes the content into
  * either an error state or, an HTTP procotol request major segments:
- *
- * \item Request Line (method, URL, protocol, version)
- * \item Mime header block
+ *  1. Request Line (method, URL, protocol, version)
+ *  2. Mime header block
  */
 class HttpParser
 {
@@ -95,3 +102,4 @@ int HttpParserRequestLen(HttpParser *hp);
 #endif
 
 #endif /*  _SQUID_SRC_HTTPPARSER_H */
+

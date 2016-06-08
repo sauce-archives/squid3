@@ -1,3 +1,10 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 # This file is supposed to run all the tests required to identify which
 # configured modules are able to be built in this environment
 
@@ -12,8 +19,10 @@ if test "x$enable_auth_basic" != "xno" -a "x$enable_auth" = "xno" ; then
     AC_MSG_ERROR([Basic auth requested but auth disabled])
 fi
 #define list of modules to build
+auto_auth_basic_modules=no
 if test "x$enable_auth_basic" = "xyes" ; then
     SQUID_LOOK_FOR_MODULES([$srcdir/helpers/basic_auth],[enable_auth_basic])
+  auto_auth_basic_modules=yes
 fi
 #handle the "none" special case
 if test "x$enable_auth_basic" = "xnone" ; then
@@ -40,9 +49,6 @@ if test "x$enable_auth_basic" != "xno" ; then
       elif test "x$helper" = "xMSNT-multi-domain" ; then
         m4_include([helpers/basic_auth/MSNT-multi-domain/required.m4])
 
-      elif test "x$helper" = "xMSNT" ; then
-        m4_include([helpers/basic_auth/MSNT/required.m4])
-
       elif test "x$helper" = "xNCSA" ; then
         m4_include([helpers/basic_auth/NCSA/required.m4])
 
@@ -64,6 +70,9 @@ if test "x$enable_auth_basic" != "xno" ; then
       elif test "x$helper" = "xSMB" ; then
         m4_include([helpers/basic_auth/SMB/required.m4])
 
+      elif test "x$helper" = "xSMB_LM" ; then
+        m4_include([helpers/basic_auth/SMB_LM/required.m4])
+
       elif test "x$helper" = "xSSPI" ; then
         m4_include([helpers/basic_auth/SSPI/required.m4])
 
@@ -80,7 +89,11 @@ if test "x$enable_auth_basic" != "xno" ; then
 
       if test -d "$srcdir/helpers/basic_auth/$helper"; then
         if test "$BUILD_HELPER" != "$helper"; then
-          AC_MSG_NOTICE([Basic auth helper $helper ... found but cannot be built])
+          if test "x$auto_auth_basic_modules" = "xyes"; then
+            AC_MSG_NOTICE([Basic auth helper $helper ... found but cannot be built])
+          else
+            AC_MSG_ERROR([Basic auth helper $helper ... found but cannot be built])
+          fi
         else
           BASIC_AUTH_HELPERS="$BASIC_AUTH_HELPERS $BUILD_HELPER"
         fi

@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ANYP_TRAFFIC_MODE_H
 #define SQUID_ANYP_TRAFFIC_MODE_H
 
@@ -13,7 +21,7 @@ namespace AnyP
 class TrafficMode
 {
 public:
-    TrafficMode() : accelSurrogate(false), natIntercept(false), tproxyIntercept(false), tunnelSslBumping(false) {}
+    TrafficMode() : accelSurrogate(false), proxySurrogate(false), natIntercept(false), tproxyIntercept(false), tunnelSslBumping(false) {}
     TrafficMode(const TrafficMode &rhs) { operator =(rhs); }
     TrafficMode &operator =(const TrafficMode &rhs) { memcpy(this, &rhs, sizeof(TrafficMode)); return *this; }
 
@@ -24,6 +32,16 @@ public:
      *  - restriction to origin peer relay recommended
      */
     bool accelSurrogate;
+
+    /** marks ports receiving PROXY protocol traffic
+     *
+     * Indicating the following are required:
+     *  - PROXY protocol magic header
+     *  - src/dst IP retrieved from magic PROXY header
+     *  - indirect client IP trust verification is mandatory
+     *  - TLS is not supported
+     */
+    bool proxySurrogate;
 
     /** marks NAT intercepted traffic
      *
@@ -68,3 +86,4 @@ public:
 } // namespace AnyP
 
 #endif
+

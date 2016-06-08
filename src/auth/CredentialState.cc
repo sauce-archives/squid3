@@ -6,7 +6,7 @@
 namespace Auth
 {
 
-const char *CredentialState_str[] = {
+const char * CredentialState_str[] = {
 	"Unchecked",
 	"Ok",
 	"Pending",

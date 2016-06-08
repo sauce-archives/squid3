@@ -1,33 +1,9 @@
 /*
- * DEBUG: section --    CGI Cache Manager
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #include "squid.h"
@@ -35,21 +11,18 @@
 #include "getfullhostname.h"
 #include "html_quote.h"
 #include "ip/Address.h"
+#include "MemBuf.h"
 #include "rfc1123.h"
 #include "rfc1738.h"
 #include "util.h"
 
+#include <cctype>
+#include <cerrno>
+#include <csignal>
+#include <cstring>
+#include <ctime>
 #if HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-#if HAVE_STDIO_H
-#include <stdio.h>
-#endif
-#if HAVE_CTYPE_H
-#include <ctype.h>
-#endif
-#if HAVE_ERRNO_H
-#include <errno.h>
 #endif
 #if HAVE_FCNTL_H
 #include <fcntl.h>
@@ -70,12 +43,6 @@
 #endif
 #if HAVE_PWD_H
 #include <pwd.h>
-#endif
-#if HAVE_SIGNAL_H
-#include <signal.h>
-#endif
-#if HAVE_TIME_H
-#include <time.h>
 #endif
 #if HAVE_SYS_PARAM_H
 #include <sys/param.h>
@@ -100,9 +67,6 @@
 #endif
 #if HAVE_LIBC_H
 #include <libc.h>
-#endif
-#if HAVE_STRING_H
-#include <string.h>
 #endif
 #if HAVE_STRINGS_H
 #include <strings.h>
@@ -138,7 +102,7 @@ typedef struct {
 /*
  * Static variables and constants
  */
-static const time_t passwd_ttl = 60 * 60 * 3;	/* in sec */
+static const time_t passwd_ttl = 60 * 60 * 3;   /* in sec */
 static const char *script_name = "/cgi-bin/cachemgr.cgi";
 static const char *progname = NULL;
 static time_t now;
@@ -460,8 +424,8 @@ menu_url(cachemgr_request * req, const char *action)
     return url;
 }
 
-static const char *
-munge_menu_line(const char *buf, cachemgr_request * req)
+static void
+munge_menu_line(MemBuf &out, const char *buf, cachemgr_request * req)
 {
     char *x;
     const char *a;
@@ -469,15 +433,14 @@ munge_menu_line(const char *buf, cachemgr_request * req)
     const char *p;
     char *a_url;
     char *buf_copy;
-    static char html[2 * 1024];
 
-    if (strlen(buf) < 1)
-        return buf;
+    const char bufLen = strlen(buf);
+    if (bufLen < 1 || *buf != ' ') {
+        out.append(buf, bufLen);
+        return;
+    }
 
-    if (*buf != ' ')
-        return buf;
-
-    buf_copy = x = xstrdup(buf);
+    buf_copy = x = xstrndup(buf, bufLen);
 
     a = xstrtok(&x, '\t');
 
@@ -489,59 +452,56 @@ munge_menu_line(const char *buf, cachemgr_request * req)
 
     /* no reason to give a url for a disabled action */
     if (!strcmp(p, "disabled"))
-        snprintf(html, sizeof(html), "<LI type=\"circle\">%s (disabled)<A HREF=\"%s\">.</A>\n", d, a_url);
+        out.Printf("<LI type=\"circle\">%s (disabled)<A HREF=\"%s\">.</A>\n", d, a_url);
     else
         /* disable a hidden action (requires a password, but password is not in squid.conf) */
         if (!strcmp(p, "hidden"))
-            snprintf(html, sizeof(html), "<LI type=\"circle\">%s (hidden)<A HREF=\"%s\">.</A>\n", d, a_url);
+            out.Printf("<LI type=\"circle\">%s (hidden)<A HREF=\"%s\">.</A>\n", d, a_url);
         else
             /* disable link if authentication is required and we have no password */
             if (!strcmp(p, "protected") && !req->passwd)
-                snprintf(html, sizeof(html), "<LI type=\"circle\">%s (requires <a href=\"%s\">authentication</a>)<A HREF=\"%s\">.</A>\n",
-                         d, menu_url(req, "authenticate"), a_url);
+                out.Printf("<LI type=\"circle\">%s (requires <a href=\"%s\">authentication</a>)<A HREF=\"%s\">.</A>\n",
+                           d, menu_url(req, "authenticate"), a_url);
             else
                 /* highlight protected but probably available entries */
                 if (!strcmp(p, "protected"))
-                    snprintf(html, sizeof(html), "<LI type=\"square\"><A HREF=\"%s\"><font color=\"#FF0000\">%s</font></A>\n",
-                             a_url, d);
+                    out.Printf("<LI type=\"square\"><A HREF=\"%s\"><font color=\"#FF0000\">%s</font></A>\n",
+                               a_url, d);
 
     /* public entry or unknown type of protection */
                 else
-                    snprintf(html, sizeof(html), "<LI type=\"disk\"><A HREF=\"%s\">%s</A>\n", a_url, d);
+                    out.Printf("<LI type=\"disk\"><A HREF=\"%s\">%s</A>\n", a_url, d);
 
     xfree(a_url);
 
     xfree(buf_copy);
-
-    return html;
 }
 
-static const char *
-munge_other_line(const char *buf, cachemgr_request * req)
+static void
+munge_other_line(MemBuf &out, const char *buf, cachemgr_request *)
 {
     static const char *ttags[] = {"td", "th"};
 
-    static char html[4096];
     static int table_line_num = 0;
     static int next_is_header = 0;
     int is_header = 0;
     const char *ttag;
     char *buf_copy;
     char *x, *p;
-    int l = 0;
     /* does it look like a table? */
 
     if (!strchr(buf, '\t') || *buf == '\t') {
         /* nope, just text */
-        snprintf(html, sizeof(html), "%s%s",
-                 table_line_num ? "</table>\n<pre>" : "", html_quote(buf));
+        if (table_line_num)
+            out.append("</table>\n<pre>", 14);
+        out.Printf("%s", html_quote(buf));
         table_line_num = 0;
-        return html;
+        return;
     }
 
     /* start html table */
     if (!table_line_num) {
-        l += snprintf(html + l, sizeof(html) - l, "</pre><table cellpadding=\"2\" cellspacing=\"1\">\n");
+        out.append("</pre><table cellpadding=\"2\" cellspacing=\"1\">\n", 46);
         next_is_header = 0;
     }
 
@@ -551,7 +511,7 @@ munge_other_line(const char *buf, cachemgr_request * req)
     ttag = ttags[is_header];
 
     /* record starts */
-    l += snprintf(html + l, sizeof(html) - l, "<tr>");
+    out.append("<tr>", 4);
 
     /* substitute '\t' */
     buf_copy = x = xstrdup(buf);
@@ -568,18 +528,17 @@ munge_other_line(const char *buf, cachemgr_request * req)
             ++x;
         }
 
-        l += snprintf(html + l, sizeof(html) - l, "<%s colspan=\"%d\" align=\"%s\">%s</%s>",
-                      ttag, column_span,
-                      is_header ? "center" : is_number(cell) ? "right" : "left",
-                      html_quote(cell), ttag);
+        out.Printf("<%s colspan=\"%d\" align=\"%s\">%s</%s>",
+                   ttag, column_span,
+                   is_header ? "center" : is_number(cell) ? "right" : "left",
+                   html_quote(cell), ttag);
     }
 
     xfree(buf_copy);
     /* record ends */
-    snprintf(html + l, sizeof(html) - l, "</tr>\n");
+    out.append("</tr>\n", 6);
     next_is_header = is_header && strstr(buf, "\t\t");
     ++table_line_num;
-    return html;
 }
 
 static const char *
@@ -675,23 +634,23 @@ read_reply(int s, cachemgr_request * req)
 
             if (status == 401 || status == 407) {
                 reset_auth(req);
-                status = 403;	/* Forbiden, see comments in case isForward: */
+                status = 403;   /* Forbiden, see comments in case isForward: */
             }
 
             /* this is a way to pass HTTP status to the Web server */
             if (statusStr)
-                printf("Status: %d %s", status, statusStr);	/* statusStr has '\n' */
+                printf("Status: %d %s", status, statusStr); /* statusStr has '\n' */
 
             break;
 
         case isHeaders:
             /* forward header field */
-            if (!strcmp(buf, "\r\n")) {		/* end of headers */
-                fputs("Content-Type: text/html\r\n", stdout);	/* add our type */
+            if (!strcmp(buf, "\r\n")) {     /* end of headers */
+                fputs("Content-Type: text/html\r\n", stdout);   /* add our type */
                 istate = isBodyStart;
             }
 
-            if (strncasecmp(buf, "Content-Type:", 13))	/* filter out their type */
+            if (strncasecmp(buf, "Content-Type:", 13))  /* filter out their type */
                 fputs(buf, stdout);
 
             break;
@@ -717,7 +676,7 @@ read_reply(int s, cachemgr_request * req)
             }
 
             istate = isActions;
-            /* yes, fall through, we do not want to loose the first line */
+        /* yes, fall through, we do not want to loose the first line */
 
         case isActions:
             if (strncmp(buf, "action:", 7) == 0) {
@@ -733,17 +692,21 @@ read_reply(int s, cachemgr_request * req)
             }
 
             istate = isBody;
-            /* yes, fall through, we do not want to loose the first line */
+        /* yes, fall through, we do not want to loose the first line */
 
         case isBody:
+        {
             /* interpret [and reformat] cache response */
-
+            MemBuf out;
+            out.init();
             if (parse_menu)
-                fputs(munge_menu_line(buf, req), stdout);
+                munge_menu_line(out, buf, req);
             else
-                fputs(munge_other_line(buf, req), stdout);
+                munge_other_line(out, buf, req);
 
-            break;
+            fputs(out.buf, stdout);
+        }
+        break;
 
         case isForward:
             /* forward: no modifications allowed */
@@ -752,7 +715,7 @@ read_reply(int s, cachemgr_request * req)
              * 401 to .cgi because web server filters out all auth info. Thus we
              * disable authentication headers for now.
              */
-            if (!strncasecmp(buf, "WWW-Authenticate:", 17) || !strncasecmp(buf, "Proxy-Authenticate:", 19));	/* skip */
+            if (!strncasecmp(buf, "WWW-Authenticate:", 17) || !strncasecmp(buf, "Proxy-Authenticate:", 19));    /* skip */
             else
                 fputs(buf, stdout);
 
@@ -859,7 +822,7 @@ process_request(cachemgr_request * req)
 #endif
         snprintf(buf, sizeof(buf), "socket: %s\n", xstrerror());
         error_html(buf);
-        Ip::Address::FreeAddrInfo(AI);
+        Ip::Address::FreeAddr(AI);
         return 1;
     }
 
@@ -868,18 +831,18 @@ process_request(cachemgr_request * req)
                  S.toUrl(ipbuf,MAX_IPSTRLEN),
                  xstrerror());
         error_html(buf);
-        Ip::Address::FreeAddrInfo(AI);
+        Ip::Address::FreeAddr(AI);
         close(s);
         return 1;
     }
 
-    Ip::Address::FreeAddrInfo(AI);
+    Ip::Address::FreeAddr(AI);
 
     l = snprintf(buf, sizeof(buf),
                  "GET cache_object://%s/%s%s%s HTTP/1.0\r\n"
                  "User-Agent: cachemgr.cgi/%s\r\n"
                  "Accept: */*\r\n"
-                 "%s"			/* Authentication info or nothing */
+                 "%s"           /* Authentication info or nothing */
                  "\r\n",
                  req->hostname,
                  req->action,
@@ -1017,7 +980,7 @@ read_request(void)
 
     cachemgr_request *req;
     char *s;
-    char *t;
+    char *t = NULL;
     char *q;
 
     if ((buf = read_post_request()) != NULL)
@@ -1042,6 +1005,7 @@ read_request(void)
     req = (cachemgr_request *)xcalloc(1, sizeof(cachemgr_request));
 
     for (s = strtok(buf, "&"); s != NULL; s = strtok(NULL, "&")) {
+        safe_free(t);
         t = xstrdup(s);
 
         if ((q = strchr(t, '=')) == NULL)
@@ -1073,6 +1037,7 @@ read_request(void)
         else if (0 == strcmp(t, "processes") && strlen(q))
             req->processes = xstrdup(q);
     }
+    safe_free(t);
 
     if (req->server && !req->hostname) {
         char *p;
@@ -1308,3 +1273,4 @@ check_target_acl(const char *hostname, int port)
     fclose(fp);
     return ret;
 }
+

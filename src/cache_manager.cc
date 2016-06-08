@@ -1,38 +1,15 @@
 /*
- * DEBUG: section 16    Cache Manager Objects
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 16    Cache Manager Objects */
 
 #include "squid.h"
 #include "base/TextException.h"
-#include "mgr/ActionPasswordList.h"
 #include "CacheManager.h"
 #include "comm/Connection.h"
 #include "Debug.h"
@@ -40,8 +17,9 @@
 #include "fde.h"
 #include "HttpReply.h"
 #include "HttpRequest.h"
-#include "mgr/ActionCreator.h"
 #include "mgr/Action.h"
+#include "mgr/ActionCreator.h"
+#include "mgr/ActionPasswordList.h"
 #include "mgr/ActionProfile.h"
 #include "mgr/BasicActions.h"
 #include "mgr/Command.h"
@@ -49,10 +27,10 @@
 #include "mgr/FunAction.h"
 #include "mgr/QueryParams.h"
 #include "protos.h"
-#include "tools.h"
 #include "SquidConfig.h"
 #include "SquidTime.h"
 #include "Store.h"
+#include "tools.h"
 #include "wordlist.h"
 
 #include <algorithm>
@@ -289,9 +267,9 @@ CacheManager::ParseHeaders(const HttpRequest * request, Mgr::ActionParams &param
 /**
  \ingroup CacheManagerInternal
  *
- \retval 0	if mgr->password is good or "none"
- \retval 1	if mgr->password is "disable"
- \retval !0	if mgr->password does not match configured password
+ \retval 0  if mgr->password is good or "none"
+ \retval 1  if mgr->password is "disable"
+ \retval !0 if mgr->password does not match configured password
  */
 int
 CacheManager::CheckPassword(const Mgr::Command &cmd)
@@ -500,3 +478,4 @@ CacheManager::GetInstance()
     }
     return instance;
 }
+

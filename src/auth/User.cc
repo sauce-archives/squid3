@@ -1,68 +1,39 @@
 /*
- * DEBUG: section 29    Authenticator
- * AUTHOR:  Robert Collins
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- * Copyright (c) 2003, Robert Collins <robertc@squid-cache.org>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
+/* DEBUG: section 29    Authenticator */
+
 #include "squid.h"
-#include "auth/User.h"
-#include "auth/UserRequest.h"
-#include "auth/Config.h"
-#include "auth/Gadgets.h"
 #include "acl/Acl.h"
 #include "acl/Gadgets.h"
+#include "auth/Config.h"
+#include "auth/Gadgets.h"
+#include "auth/User.h"
+#include "auth/UserRequest.h"
 #include "event.h"
 #include "globals.h"
 #include "SquidConfig.h"
 #include "SquidTime.h"
 #include "Store.h"
 
-#if !_USE_INLINE_
-#include "auth/User.cci"
-#endif
-
-// This should be converted into a pooled type. Does not need to be cbdata
-CBDATA_TYPE(AuthUserIP);
-
 time_t Auth::User::last_discard = 0;
 
-Auth::User::User(Auth::Config *aConfig) :
-        auth_type(Auth::AUTH_UNKNOWN),
-        config(aConfig),
-        ipcount(0),
-        expiretime(0),
-        notes(),
-        credentials_state(Auth::Unchecked),
-        username_(NULL)
+Auth::User::User(Auth::Config *aConfig, const char *aRequestRealm) :
+    auth_type(Auth::AUTH_UNKNOWN),
+    config(aConfig),
+    ipcount(0),
+    expiretime(0),
+    notes(),
+    credentials_state(Auth::Unchecked),
+    username_(NULL),
+    userKey_(NULL)
 {
-    proxy_auth_list.head = proxy_auth_list.tail = NULL;
+    requestRealm_ = aRequestRealm ? xstrdup(aRequestRealm) : NULL;
     proxy_match_cache.head = proxy_match_cache.tail = NULL;
     ip_list.head = ip_list.tail = NULL;
     debugs(29, 5, HERE << "Initialised auth_user '" << this << "'.");
@@ -94,7 +65,6 @@ Auth::User::absorb(Auth::User::Pointer from)
 {
     /*
      * XXX Incomplete: it should merge in hash references too and ask the module to merge in scheme data
-     *  dlink_list proxy_auth_list;
      *  dlink_list proxy_match_cache;
      */
 
@@ -112,7 +82,7 @@ Auth::User::absorb(Auth::User::Pointer from)
         if (new_ipdata->ip_expiretime <= squid_curtime) {
             /* This IP has expired - remove from the source list */
             dlinkDelete(&new_ipdata->node, &(from->ip_list));
-            cbdataFree(new_ipdata);
+            delete new_ipdata;
             /* catch incipient underflow */
             -- from->ipcount;
         } else {
@@ -131,7 +101,7 @@ Auth::User::absorb(Auth::User::Pointer from)
                 } else if (ipdata->ip_expiretime <= squid_curtime) {
                     /* This IP has expired - cleanup the destination list */
                     dlinkDelete(&ipdata->node, &ip_list);
-                    cbdataFree(ipdata);
+                    delete ipdata;
                     /* catch incipient underflow */
                     assert(ipcount);
                     -- ipcount;
@@ -165,6 +135,10 @@ Auth::User::~User()
 
     if (username_)
         xfree((char*)username_);
+    if (requestRealm_)
+        xfree((char*)requestRealm_);
+    if (userKey_)
+        xfree((char*)userKey_);
 
     /* prevent accidental reuse */
     auth_type = Auth::AUTH_UNKNOWN;
@@ -257,7 +231,7 @@ Auth::User::clearIp()
         tempnode = (AuthUserIP *) ipdata->node.next;
         /* walk the ip list */
         dlinkDelete(&ipdata->node, &ip_list);
-        cbdataFree(ipdata);
+        delete ipdata;
         /* catch incipient underflow */
         assert(ipcount);
         -- ipcount;
@@ -279,7 +253,7 @@ Auth::User::removeIp(Ip::Address ipaddr)
         if (ipdata->ipaddr == ipaddr) {
             /* remove the node */
             dlinkDelete(&ipdata->node, &ip_list);
-            cbdataFree(ipdata);
+            delete ipdata;
             /* catch incipient underflow */
             assert(ipcount);
             -- ipcount;
@@ -296,8 +270,6 @@ Auth::User::addIp(Ip::Address ipaddr)
 {
     AuthUserIP *ipdata = (AuthUserIP *) ip_list.head;
     int found = 0;
-
-    CBDATA_INIT_TYPE(AuthUserIP);
 
     /*
      * we walk the entire list to prevent the first item in the list
@@ -316,7 +288,7 @@ Auth::User::addIp(Ip::Address ipaddr)
         } else if (ipdata->ip_expiretime <= squid_curtime) {
             /* This IP has expired - remove from the seen list */
             dlinkDelete(&ipdata->node, &ip_list);
-            cbdataFree(ipdata);
+            delete ipdata;
             /* catch incipient underflow */
             assert(ipcount);
             -- ipcount;
@@ -329,17 +301,24 @@ Auth::User::addIp(Ip::Address ipaddr)
         return;
 
     /* This ip is not in the seen list */
-    ipdata = cbdataAlloc(AuthUserIP);
-
-    ipdata->ip_expiretime = squid_curtime + ::Config.authenticateIpTTL;
-
-    ipdata->ipaddr = ipaddr;
+    ipdata = new AuthUserIP(ipaddr, squid_curtime + ::Config.authenticateIpTTL);
 
     dlinkAddTail(ipdata, &ipdata->node, &ip_list);
 
     ++ipcount;
 
     debugs(29, 2, HERE << "user '" << username() << "' has been seen at a new IP address (" << ipaddr << ")");
+}
+
+SBuf
+Auth::User::BuildUserKey(const char *username, const char *realm)
+{
+    SBuf key;
+    if (realm)
+        key.Printf("%s:%s", username, realm);
+    else
+        key.append(username, strlen(username));
+    return key;
 }
 
 /**
@@ -387,3 +366,21 @@ Auth::User::UsernameCacheStats(StoreEntry *output)
                          );
     }
 }
+
+void
+Auth::User::username(char const *aString)
+{
+    SBuf key;
+
+    if (aString) {
+        assert(!username_);
+        username_ = xstrdup(aString);
+        key = BuildUserKey(username_, requestRealm_);
+        // XXX; performance regression. c_str() reallocates, then xstrdup() reallocates
+        userKey_ = xstrdup(key.c_str());
+    } else {
+        safe_free(username_);
+        safe_free(userKey_)
+    }
+}
+

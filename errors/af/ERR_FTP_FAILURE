@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Die aangevraagde URL kon nie verkry word nie</title>
 <style type="text/css"><!-- 
@@ -21,13 +22,13 @@ body
 
 <p>Squid het die volgende FTP-opdrag gestuur:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%f</pre>
 </blockquote>
 
 <p>Die bediener het geantwoord met:</p>
 <blockquote id="error">
-<pre></pre>
-<pre></pre>
+<pre>%F</pre>
+<pre>%g</pre>
 </blockquote>
 
 <p>Die kasbediener se administrateur is <a href="mailto:%w%W">%w</a>.</p>

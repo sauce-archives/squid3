@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FEHLER: Die angeforderte URL konnte nicht gefunden werden</title>
 <style type="text/css"><!-- 
@@ -20,10 +21,10 @@ body
 <p>Der folgende Fehler wurde beim Versuch die URL <a href="%U">%U</a> zu holen festgestellt:</p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Zeitguthaben aufgebraucht</b></p>
 </blockquote>
 
-<p></p>
+<p>Ihr Zugriff auf diesen Proxy unterliegt einer Zeitbegrenzung. Ihr Online-Zeitguthaben ist nun aufgebraucht. Es wird automatisch erneuert, sobald der nächste vereinbarte Zyklus beginnt.</p>
 <p>Diese Einschränkungen wurden vom Internetdienstanbieter eingerichtet der diesen Cache betreibt. Bitte kontaktieren sie ihn falls sie denken, dass dies ein Fehler ist.</p>
 
 <p>Ihr Cache Administrator ist <a href="mailto:%w%W">%w</a>.</p>

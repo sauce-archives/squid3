@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>EROARE: URL-ul cerut nu a putut fi accesat</title>
 <style type="text/css"><!-- 
@@ -20,10 +21,10 @@ body
 <p>S-a recepţionat următoarea eroare când se încerca accesarea URL-ului: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Time Quota Exceeded.</b></p>
 </blockquote>
 
-<p></p>
+<p>This proxy limits your time online with a quota. Your time budget is now empty but will be refilled when the configured time period starts again.</p>
 <p>Aceste limite au fost impuse de către organizaţia care oferă serviciile de Internet şi care administreză acest cache. Vă rugăm să îi contactaţi în mod direct dacă sunteţi de părere că este o greşeală.</p>
 
 <p>Administratorul cache-ului este <a href="mailto:%w%W">%w</a>.</p>

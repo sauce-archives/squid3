@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>KĻŪDA: Pieprasītā adrese nav atrodama</title>
 <style type="text/css"><!-- 
@@ -25,7 +26,7 @@ body
 
 <p>DNS serveris atgrieza:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%z</pre>
 </blockquote>
 
 <p>Tas nozīmē, ka kešatmiņa nevar atrast adresē ietverto saimniekdatora vārdu. Pārbaudiet vai adrese ir korekta.</p>
