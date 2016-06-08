@@ -41,6 +41,7 @@ DEB_CONFIGURE_EXTRA_FLAGS := --datadir=/usr/share/squid3 \
 		--with-pidfile=/var/run/squid3.pid \
 		--with-filedescriptors=65536 \
 		--with-large-files \
+		--with-openssl \
 		--with-default-user=proxy
 
 DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS 2>/dev/null)
