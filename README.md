@@ -63,9 +63,20 @@ that you cooperate with the computer overlord and install those dependencies:
     $ sudo dpkg-buildpackage -B
     ... FIX STUFF UNTIL IT WORKS ...
 
+To get the package build to work, you'll need to sign it with your GPG key. Put
+the secret GPG key ID (good for sponsoring packages) with the following in the
+`~/.devscripts`:
+
+    DEBSIGN_KEYID=Your_GPG_keyID
+
 The package will be in the ... directory.
 
 Check that the package is A-OK, and commit your changes if there are any:
 
     $ git commit -m 'Fixes for squid-3.5.99 update'
     $ git push
+
+References:
+
+https://www.debian.org/doc/manuals/maint-guide/build.en.html
+https://www.debian.org/doc/manuals/maint-guide/update.en.html
