@@ -25,8 +25,8 @@ Download the latest version of squid let's say 3.5.99.
     $ wget http://www.squid-cache.org/Versions/v3/3.5/squid-3.5.99.tar.gz
     $ tar zxf squid-3.5.99.tar.gz
 
-We're going to remove everything in the squid3 repo except the .git directory.
-It's to make sure that old deleted files get deleted by git:
+We're going to remove everything in the squid3 repo except the .git directory,
+to ensure we don't have old files leftover from a previous version:
 
     $ cd squid3/
     $ rm -rf *
@@ -60,11 +60,11 @@ At that point you'll be asked to install a bunch of dependencies. I recommend
 that you cooperate with the computer overlord and install those dependencies:
 
     $ sudo apt-get install [list of dependencies...]
-    $ sudo dpkg-buildpackage -B
+    $ dpkg-buildpackage -B -us -uc -nc
     ... FIX STUFF UNTIL IT WORKS ...
 
-To get the package build to work, you'll need to sign it with your GPG key. Put
-the secret GPG key ID (good for sponsoring packages) with the following in the
+To get the package to build you have to sign it with your GPG key. Put the
+secret GPG key ID (good for sponsoring packages) with the following in the
 `~/.devscripts`:
 
     DEBSIGN_KEYID=Your_GPG_keyID
