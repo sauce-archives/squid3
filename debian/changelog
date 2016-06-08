@@ -1,3 +1,9 @@
+squid3 (3.5.19-0~sauce0) trusty; urgency=medium
+
+  * Update upstream to Squid 3.5.19
+
+ -- Henry Precheur <henry@precheur.org>  Wed, 08 Jun 2016 10:15:33 -0700
+
 squid3 (3.4.6-0~sauce19.5) trusty; urgency=medium
 
   * Bump version
