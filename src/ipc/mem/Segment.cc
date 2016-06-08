@@ -1,7 +1,12 @@
 /*
- * DEBUG: section 54    Interprocess Communication
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 54    Interprocess Communication */
 
 #include "squid.h"
 #include "base/TextException.h"
@@ -9,12 +14,21 @@
 #include "Debug.h"
 #include "fatal.h"
 #include "ipc/mem/Segment.h"
+#include "SBuf.h"
 #include "tools.h"
 
+#if HAVE_FCNTL_H
 #include <fcntl.h>
+#endif
+#if HAVE_SYS_MMAN_H
 #include <sys/mman.h>
+#endif
+#if HAVE_SYS_STAT_H
 #include <sys/stat.h>
+#endif
+#if HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 
 // test cases change this
 const char *Ipc::Mem::Segment::BasePath = DEFAULT_STATEDIR;
@@ -33,11 +47,20 @@ Ipc::Mem::Segment::reserve(size_t chunkSize)
     return result;
 }
 
+SBuf
+Ipc::Mem::Segment::Name(const SBuf &prefix, const char *suffix)
+{
+    SBuf result = prefix;
+    result.append("_");
+    result.append(suffix);
+    return result;
+}
+
 #if HAVE_SHM
 
 Ipc::Mem::Segment::Segment(const char *const id):
-        theFD(-1), theName(GenerateName(id)), theMem(NULL),
-        theSize(0), theReserved(0), doUnlink(false)
+    theFD(-1), theName(GenerateName(id)), theMem(NULL),
+    theSize(0), theReserved(0), doUnlink(false)
 {
 }
 
@@ -65,8 +88,15 @@ Ipc::Mem::Segment::create(const off_t aSize)
     assert(aSize > 0);
     assert(theFD < 0);
 
-    theFD = shm_open(theName.termedBuf(), O_CREAT | O_RDWR | O_TRUNC,
-                     S_IRUSR | S_IWUSR);
+    // Why a brand new segment? A Squid crash may leave a reusable segment, but
+    // our placement-new code requires an all-0s segment. We could truncate and
+    // resize the old segment, but OS X does not allow using O_TRUNC with
+    // shm_open() and does not support ftruncate() for old segments.
+    if (!createFresh() && errno == EEXIST) {
+        unlink();
+        createFresh();
+    }
+
     if (theFD < 0) {
         debugs(54, 5, HERE << "shm_open " << theName << ": " << xstrerror());
         fatalf("Ipc::Mem::Segment::create failed to shm_open(%s): %s\n",
@@ -74,14 +104,19 @@ Ipc::Mem::Segment::create(const off_t aSize)
     }
 
     if (ftruncate(theFD, aSize)) {
-        debugs(54, 5, HERE << "ftruncate " << theName << ": " << xstrerror());
+        const int savedError = errno;
+        unlink();
+        debugs(54, 5, HERE << "ftruncate " << theName << ": " << xstrerr(savedError));
         fatalf("Ipc::Mem::Segment::create failed to ftruncate(%s): %s\n",
-               theName.termedBuf(), xstrerror());
+               theName.termedBuf(), xstrerr(savedError));
     }
+    // We assume that the shm_open(O_CREAT)+ftruncate() combo zeros the segment.
 
-    assert(statSize("Ipc::Mem::Segment::create") == aSize); // paranoid
+    theSize = statSize("Ipc::Mem::Segment::create");
 
-    theSize = aSize;
+    // OS X will round up to a full page, so not checking for exact size match.
+    assert(theSize >= aSize);
+
     theReserved = 0;
     doUnlink = true;
 
@@ -107,6 +142,17 @@ Ipc::Mem::Segment::open()
     debugs(54, 3, HERE << "opened " << theName << " segment: " << theSize);
 
     attach();
+}
+
+/// Creates a brand new shared memory segment and returns true.
+/// Fails and returns false if there exist an old segment with the same name.
+bool
+Ipc::Mem::Segment::createFresh()
+{
+    theFD = shm_open(theName.termedBuf(),
+                     O_EXCL | O_CREAT | O_RDWR,
+                     S_IRUSR | S_IWUSR);
+    return theFD >= 0;
 }
 
 /// Map the shared memory segment to the process memory space.
@@ -184,8 +230,11 @@ Ipc::Mem::Segment::GenerateName(const char *id)
         name.append(BasePath);
         if (name[name.size()-1] != '/')
             name.append('/');
-    } else
-        name.append("/squid-");
+    } else {
+        name.append('/');
+        name.append(service_name.c_str());
+        name.append('-');
+    }
 
     // append id, replacing slashes with dots
     for (const char *slash = strchr(id, '/'); slash; slash = strchr(id, '/')) {
@@ -209,7 +258,7 @@ typedef std::map<String, Ipc::Mem::Segment *> SegmentMap;
 static SegmentMap Segments;
 
 Ipc::Mem::Segment::Segment(const char *const id):
-        theName(id), theMem(NULL), theSize(0), theReserved(0), doUnlink(false)
+    theName(id), theMem(NULL), theSize(0), theReserved(0), doUnlink(false)
 {
 }
 
@@ -279,7 +328,7 @@ Ipc::Mem::Segment::checkSupport(const char *const context)
 #endif // HAVE_SHM
 
 void
-Ipc::Mem::RegisteredRunner::run(const RunnerRegistry &r)
+Ipc::Mem::RegisteredRunner::useConfig()
 {
     // If Squid is built with real segments, we create() real segments
     // in the master process only.  Otherwise, we create() fake
@@ -290,10 +339,11 @@ Ipc::Mem::RegisteredRunner::run(const RunnerRegistry &r)
 #else
     if (IamWorkerProcess())
 #endif
-        create(r);
+        create();
 
     // we assume that master process does not need shared segments
     // unless it is also a worker
     if (!InDaemonMode() || !IamMasterProcess())
-        open(r);
+        open();
 }
+

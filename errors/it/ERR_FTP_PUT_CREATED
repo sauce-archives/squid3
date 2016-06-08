@@ -1,7 +1,8 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>FTP PUT Successful.</title>
+<title>Comando FTP PUT eseguito correttamente.</title>
 <style type="text/css"><!-- 
  %l
 
@@ -12,7 +13,7 @@ body
 </head><body id="%c">
 <div id="titles">
 <h1 id="ftpsuccess">Operazione eseguita correttamente</h1>
-<h2>Il file è stato creato.</h2>
+<h2>Il file è stato creato</h2>
 </div>
 <hr>
 
@@ -20,7 +21,7 @@ body
 
 <hr>
 <div id="footer">
-<p>Generato da %h (%s) il %T.</p>
+<p>Generato da %h (%s) il %T</p>
 <!-- %c -->
 </div>
 </body></html>

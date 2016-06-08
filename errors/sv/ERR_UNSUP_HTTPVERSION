@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FEL: Beg&auml;rd URL kunde inte h&auml;mtas</title>
 <style type="text/css"><!-- 
@@ -23,7 +24,7 @@ body
 <p><b>Icke stödd HTTP version</b></p>
 </blockquote>
 
-<p>Squid fungerar inte med den versionen av HTTP som du försöker använda</p>
+<p>Denna Squid accepterar inte den HTTP version du försöker använda.</p>
 
 <p>Din cacheserver administrat&ouml;r &auml;r <a href="mailto:%w%W">%w</a>.</p>
 <br>

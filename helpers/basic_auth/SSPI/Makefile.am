@@ -1,7 +1,14 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 include $(top_srcdir)/src/Common.am
 
 ## we need our local files too (but avoid -I. at all costs)
-INCLUDES += -I$(srcdir)
+AM_CPPFLAGS += -I$(srcdir)
 
 if ENABLE_WIN32SPECIFIC
 libexec_PROGRAMS = basic_sspi_auth

@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERROR: The requested URN could not be retrieved</title>
 <style type="text/css"><!-- 
@@ -23,7 +24,7 @@ body
 <p><b>Неможливо визначити URN</b></p>
 </blockquote>
 
-<p>Hey, don't expect too much from URNs on %T :)</p>
+<p>Не очікуйте надто багато від URN'ів на %T.</p>
 
 <p>Адміністратор даного кешу <a href="mailto:%w%W">%w</a>.</p>
 <br>

@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>エラー: 要求されたURLからデータを取り出せませんでした。</title>
 <style type="text/css"><!-- 
@@ -12,15 +13,15 @@ body
 </head><body id="%c">
 <div id="titles">
 <h1>エラー</h1>
-<h2>リクエストされた URL は取得できませんでした</h2>
+<h2>指定された URL を取得できませんでした</h2>
 </div>
 <hr>
 
 <div id="content">
-<p></p>
+<p>URL: <a href="%U">%U</a> の取得中に以下のエラーが発生しました。</p>
 
 <blockquote id="error">
-<p><b>%Iへの安全な接続を確立に失敗しました。</b></p>
+<p><b>%Iに安全な接続を確立できませんでした。</b></p>
 </blockquote>
 
 <div id="sysmsg">
@@ -31,9 +32,9 @@ body
 </blockquote>
 </div>
 
-<p></p>
+<p>このプロキシーと接続先のホストは互いに受け入れられる、あなたの要求を扱うためのセキュリティの設定を得ることができませんでした。接続先のホストが安全な接続をサポートしていないか、プロキシーは接続先ホストが要求する証明書を満たせなかったといったことが考えられます．</p>
 
-<p></p>
+<p>Your cache administrator is <a href="mailto:%w%W">%w</a>.</p>
 <br>
 </div>
 

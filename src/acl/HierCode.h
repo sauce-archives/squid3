@@ -1,8 +1,16 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ACLHIERCODE_H
 #define SQUID_ACLHIERCODE_H
 
-#include "acl/Strategy.h"
 #include "acl/Strategised.h"
+#include "acl/Strategy.h"
 #include "hier_code.h"
 
 /// \ingroup ACLAPI
@@ -40,3 +48,4 @@ private:
 };
 
 #endif /* SQUID_ACLHIERCODE_H */
+

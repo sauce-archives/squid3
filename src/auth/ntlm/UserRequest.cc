@@ -1,11 +1,25 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
-#include "auth/ntlm/auth_ntlm.h"
+#include "AccessLogEntry.h"
+#include "auth/ntlm/Config.h"
 #include "auth/ntlm/UserRequest.h"
 #include "auth/State.h"
 #include "cbdata.h"
 #include "client_side.h"
+#include "format/Format.h"
 #include "globals.h"
+#include "helper.h"
+#include "helper/Reply.h"
+#include "HttpMsg.h"
 #include "HttpRequest.h"
+#include "MemBuf.h"
 #include "SquidTime.h"
 
 Auth::Ntlm::UserRequest::UserRequest()
@@ -49,6 +63,27 @@ Auth::Ntlm::UserRequest::authenticated() const
     return 0;
 }
 
+const char *
+Auth::Ntlm::UserRequest::credentialsStr()
+{
+    static char buf[MAX_AUTHTOKEN_LEN];
+    int printResult;
+    if (user()->credentials() == Auth::Pending) {
+        printResult = snprintf(buf, sizeof(buf), "YR %s\n", client_blob);
+    } else {
+        printResult = snprintf(buf, sizeof(buf), "KK %s\n", client_blob);
+    }
+
+    // truncation is OK because we are used only for logging
+    if (printResult < 0) {
+        debugs(29, 2, "Can not build ntlm authentication credentials.");
+        buf[0] = '\0';
+    } else if (printResult >= (int)sizeof(buf))
+        debugs(29, 2, "Ntlm authentication credentials truncated.");
+
+    return buf;
+}
+
 Auth::Direction
 Auth::Ntlm::UserRequest::module_direction()
 {
@@ -79,7 +114,7 @@ Auth::Ntlm::UserRequest::module_direction()
 }
 
 void
-Auth::Ntlm::UserRequest::module_start(AUTHCB * handler, void *data)
+Auth::Ntlm::UserRequest::startHelperLookup(HttpRequest *req, AccessLogEntry::Pointer &al, AUTHCB * handler, void *data)
 {
     static char buf[MAX_AUTHTOKEN_LEN];
 
@@ -94,13 +129,29 @@ Auth::Ntlm::UserRequest::module_start(AUTHCB * handler, void *data)
 
     debugs(29, 8, HERE << "credentials state is '" << user()->credentials() << "'");
 
+    const char *keyExtras = helperRequestKeyExtras(request, al);
+    int printResult = 0;
     if (user()->credentials() == Auth::Pending) {
-        snprintf(buf, sizeof(buf), "YR %s\n", client_blob); //CHECKME: can ever client_blob be 0 here?
+        if (keyExtras)
+            printResult = snprintf(buf, sizeof(buf), "YR %s %s\n", client_blob, keyExtras);
+        else
+            printResult = snprintf(buf, sizeof(buf), "YR %s\n", client_blob); //CHECKME: can ever client_blob be 0 here?
     } else {
-        snprintf(buf, sizeof(buf), "KK %s\n", client_blob);
+        if (keyExtras)
+            printResult = snprintf(buf, sizeof(buf), "KK %s %s\n", client_blob, keyExtras);
+        else
+            printResult = snprintf(buf, sizeof(buf), "KK %s\n", client_blob);
     }
-
     waiting = 1;
+
+    if (printResult < 0 || printResult >= (int)sizeof(buf)) {
+        if (printResult < 0)
+            debugs(29, DBG_CRITICAL, "ERROR: Can not build ntlm authentication helper request");
+        else
+            debugs(29, DBG_CRITICAL, "ERROR: Ntlm authentication helper request too big for the " << sizeof(buf) << "-byte buffer.");
+        handler(data);
+        return;
+    }
 
     safe_free(client_blob);
     helperStatefulSubmit(ntlmauthenticators, buf, Auth::Ntlm::UserRequest::HandleReply,
@@ -125,8 +176,6 @@ Auth::Ntlm::UserRequest::releaseAuthServer()
 void
 Auth::Ntlm::UserRequest::authenticate(HttpRequest * aRequest, ConnStateData * conn, http_hdr_type type)
 {
-    assert(this);
-
     /* Check that we are in the client side, where we can generate
      * auth challenges */
 
@@ -205,7 +254,7 @@ Auth::Ntlm::UserRequest::authenticate(HttpRequest * aRequest, ConnStateData * co
 }
 
 void
-Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
+Auth::Ntlm::UserRequest::HandleReply(void *data, const Helper::Reply &reply)
 {
     Auth::StateData *r = static_cast<Auth::StateData *>(data);
 
@@ -223,6 +272,8 @@ Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
     // add new helper kv-pair notes to the credentials object
     // so that any transaction using those credentials can access them
     auth_user_request->user()->notes.appendNewOnly(&reply.notes);
+    // remove any private credentials detail which got added.
+    auth_user_request->user()->notes.remove("token");
 
     Auth::Ntlm::UserRequest *lm_request = dynamic_cast<Auth::Ntlm::UserRequest *>(auth_user_request.getRaw());
     assert(lm_request != NULL);
@@ -240,7 +291,7 @@ Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
         assert(reply.whichServer == lm_request->authserver);
 
     switch (reply.result) {
-    case HelperReply::TT:
+    case Helper::TT:
         /* we have been given a blob to send to the client */
         safe_free(lm_request->server_blob);
         lm_request->request->flags.mustKeepalive = true;
@@ -256,7 +307,7 @@ Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
         }
         break;
 
-    case HelperReply::Okay: {
+    case Helper::Okay: {
         /* we're finished, release the helper */
         const char *userLabel = reply.notes.findFirst("user");
         if (!userLabel) {
@@ -274,12 +325,11 @@ Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
         debugs(29, 4, HERE << "Successfully validated user via NTLM. Username '" << userLabel << "'");
         /* connection is authenticated */
         debugs(29, 4, HERE << "authenticated user " << auth_user_request->user()->username());
-        /* see if this is an existing user with a different proxy_auth
-         * string */
-        AuthUserHashPointer *usernamehash = static_cast<AuthUserHashPointer *>(hash_lookup(proxy_auth_username_cache, auth_user_request->user()->username()));
+        /* see if this is an existing user */
+        AuthUserHashPointer *usernamehash = static_cast<AuthUserHashPointer *>(hash_lookup(proxy_auth_username_cache, auth_user_request->user()->userKey()));
         Auth::User::Pointer local_auth_user = lm_request->user();
         while (usernamehash && (usernamehash->user()->auth_type != Auth::AUTH_NTLM ||
-                                strcmp(usernamehash->user()->username(), auth_user_request->user()->username()) != 0))
+                                strcmp(usernamehash->user()->userKey(), auth_user_request->user()->userKey()) != 0))
             usernamehash = static_cast<AuthUserHashPointer *>(usernamehash->next);
         if (usernamehash) {
             /* we can't seamlessly recheck the username due to the
@@ -302,7 +352,7 @@ Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
     }
     break;
 
-    case HelperReply::Error: {
+    case Helper::Error: {
         /* authentication failure (wrong password, etc.) */
         const char *errNote = reply.notes.find("message");
         if (errNote != NULL)
@@ -316,18 +366,18 @@ Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
     }
     break;
 
-    case HelperReply::Unknown:
+    case Helper::Unknown:
         debugs(29, DBG_IMPORTANT, "ERROR: NTLM Authentication Helper '" << reply.whichServer << "' crashed!.");
-        /* continue to the next case */
+    /* continue to the next case */
 
-    case HelperReply::BrokenHelper: {
+    case Helper::BrokenHelper: {
         /* TODO kick off a refresh process. This can occur after a YR or after
          * a KK. If after a YR release the helper and resubmit the request via
          * Authenticate NTLM start.
          * If after a KK deny the user's request w/ 407 and mark the helper as
          * Needing YR. */
         const char *errNote = reply.notes.find("message");
-        if (reply.result == HelperReply::Unknown)
+        if (reply.result == Helper::Unknown)
             auth_user_request->denyMessage("Internal Error");
         else if (errNote != NULL)
             auth_user_request->denyMessage(errNote);
@@ -348,3 +398,4 @@ Auth::Ntlm::UserRequest::HandleReply(void *data, const HelperReply &reply)
     r->handler(r->data);
     delete r;
 }
+

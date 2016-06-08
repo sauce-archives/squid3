@@ -1,7 +1,12 @@
 /*
- * DEBUG: section 16    Cache Manager API
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 16    Cache Manager API */
 
 #ifndef SQUID_MGR_ACTION_PARAMS_H
 #define SQUID_MGR_ACTION_PARAMS_H
@@ -42,3 +47,4 @@ public:
 std::ostream &operator <<(std::ostream &os, const Mgr::ActionParams &params);
 
 #endif /* SQUID_MGR_ACTION_PARAMS_H */
+

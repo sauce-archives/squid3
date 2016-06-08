@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_HTTPHEADERTOOLS_H
 #define SQUID_HTTPHEADERTOOLS_H
 
@@ -6,18 +14,10 @@
 #include "HttpHeader.h"
 #include "typedefs.h"
 
-#if HAVE_FUNCTIONAL
 #include <functional>
-#endif
-#if HAVE_LIST
 #include <list>
-#endif
-#if HAVE_MAP
 #include <map>
-#endif
-#if HAVE_STRING
 #include <string>
-#endif
 #if HAVE_STRINGS_H
 #include <strings.h>
 #endif
@@ -129,3 +129,4 @@ const char *getStringPrefix(const char *str, const char *end);
 void httpHdrMangleList(HttpHeader *, HttpRequest *, int req_or_rep);
 
 #endif
+

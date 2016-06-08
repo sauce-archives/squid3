@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef _SQUID_LOG_FORMATS_H
 #define _SQUID_LOG_FORMATS_H
 
@@ -54,3 +62,4 @@ void HttpdCombined(const AccessLogEntryPointer &al, Logfile * logfile);
 }; // namespace Log
 
 #endif /* _SQUID_LOG_FORMATS_H */
+

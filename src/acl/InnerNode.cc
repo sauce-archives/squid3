@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "acl/Acl.h"
 #include "acl/BoolOps.h"
@@ -8,7 +16,6 @@
 #include "ConfigParser.h"
 #include "Debug.h"
 #include "globals.h"
-#include "wordlist.h"
 #include <algorithm>
 
 void
@@ -66,13 +73,13 @@ Acl::InnerNode::lineParse()
     return;
 }
 
-wordlist*
+SBufList
 Acl::InnerNode::dump() const
 {
-    wordlist *values = NULL;
+    SBufList rv;
     for (Nodes::const_iterator i = nodes.begin(); i != nodes.end(); ++i)
-        wordlistAdd(&values, (*i)->name);
-    return values;
+        rv.push_back(SBuf((*i)->name));
+    return rv;
 }
 
 int
@@ -82,7 +89,7 @@ Acl::InnerNode::match(ACLChecklist *checklist)
 }
 
 bool
-Acl::InnerNode::resumeMatchingAt(ACLChecklist *checklist, Nodes::const_iterator pos) const
+Acl::InnerNode::resumeMatchingAt(ACLChecklist *checklist, Acl::Nodes::const_iterator pos) const
 {
     debugs(28, 5, "checking " << name << " at " << (pos-nodes.begin()));
     const int result = doMatch(checklist, pos);
@@ -92,3 +99,4 @@ Acl::InnerNode::resumeMatchingAt(ACLChecklist *checklist, Nodes::const_iterator 
     // merges async and failures (-1) into "not matched"
     return result == 1;
 }
+

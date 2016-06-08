@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>RALAT: URL yang diminta tidak dapat diterima</title>
 <style type="text/css"><!-- 
@@ -12,18 +13,18 @@ body
 </head><body id="%c">
 <div id="titles">
 <h1>RALAT</h1>
-<h2></h2>
+<h2>The requested URL could not be retrieved</h2>
 </div>
 <hr>
 
 <div id="content">
-<p></p>
+<p>The following error was encountered while trying to retrieve the URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Read Timeout</b></p>
 </blockquote>
 
-<p id="sysmsg"></p>
+<p id="sysmsg">The system returned: <i>%E</i></p>
 
 <p>A Timeout occurred while waiting to read data from the network. The network or server may be down or congested. Please retry your request.</p>
 

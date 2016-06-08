@@ -1,24 +1,31 @@
 /*
- * DEBUG: section 93    eCAP Interface
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 93    eCAP Interface */
+
 #include "squid.h"
-#include "HttpRequest.h"
-#include "HttpReply.h"
 #include "BodyPipe.h"
+#include "HttpReply.h"
+#include "HttpRequest.h"
 #include <libecap/common/names.h>
 #include <libecap/common/area.h>
 #include <libecap/common/version.h>
 #include <libecap/common/named_values.h>
+#include "adaptation/ecap/Host.h" /* for protocol constants */
 #include "adaptation/ecap/MessageRep.h"
 #include "adaptation/ecap/XactionRep.h"
-#include "adaptation/ecap/Host.h" /* for protocol constants */
 #include "base/TextException.h"
 #include "URL.h"
 
 /* HeaderRep */
 
 Adaptation::Ecap::HeaderRep::HeaderRep(HttpMsg &aMessage): theHeader(aMessage.header),
-        theMessage(aMessage)
+    theMessage(aMessage)
 {
 }
 
@@ -39,7 +46,7 @@ Adaptation::Ecap::HeaderRep::value(const Name &name) const
     const String value = squidId == HDR_OTHER ?
                          theHeader.getByName(name.image().c_str()) :
                          theHeader.getStrOrList(squidId);
-    return value.defined() ?
+    return value.size() > 0 ?
            Value::FromTempString(value.termedBuf()) : Value();
 }
 
@@ -135,7 +142,7 @@ libecap::Name
 Adaptation::Ecap::FirstLineRep::protocol() const
 {
     // TODO: optimize?
-    switch (theMessage.protocol) {
+    switch (theMessage.http_ver.protocol) {
     case AnyP::PROTO_HTTP:
         return libecap::protocolHttp;
     case AnyP::PROTO_HTTPS:
@@ -158,8 +165,6 @@ Adaptation::Ecap::FirstLineRep::protocol() const
 #endif
     case AnyP::PROTO_CACHE_OBJECT:
         return protocolCacheObj;
-    case AnyP::PROTO_INTERNAL:
-        return protocolInternal;
     case AnyP::PROTO_ICY:
         return protocolIcy;
     case AnyP::PROTO_COAP:
@@ -181,7 +186,7 @@ void
 Adaptation::Ecap::FirstLineRep::protocol(const Name &p)
 {
     // TODO: what happens if we fail to translate some protocol?
-    theMessage.protocol = TranslateProtocolId(p);
+    theMessage.http_ver.protocol = TranslateProtocolId(p);
 }
 
 AnyP::ProtocolType
@@ -195,7 +200,7 @@ Adaptation::Ecap::FirstLineRep::TranslateProtocolId(const Name &name)
 /* RequestHeaderRep */
 
 Adaptation::Ecap::RequestLineRep::RequestLineRep(HttpRequest &aMessage):
-        FirstLineRep(aMessage), theMessage(aMessage)
+    FirstLineRep(aMessage), theMessage(aMessage)
 {
 }
 
@@ -254,7 +259,7 @@ Adaptation::Ecap::RequestLineRep::method() const
     case Http::METHOD_TRACE:
         return libecap::methodTrace;
     default:
-        return Name(theMessage.method.image());
+        return Name(theMessage.method.image().toStdString());
     }
 }
 
@@ -285,14 +290,14 @@ Adaptation::Ecap::RequestLineRep::protocol(const Name &p)
 /* ReplyHeaderRep */
 
 Adaptation::Ecap::StatusLineRep::StatusLineRep(HttpReply &aMessage):
-        FirstLineRep(aMessage), theMessage(aMessage)
+    FirstLineRep(aMessage), theMessage(aMessage)
 {
 }
 
 void
 Adaptation::Ecap::StatusLineRep::statusCode(int code)
 {
-    theMessage.sline.set(theMessage.sline.version, static_cast<Http::StatusCode>(code), theMessage.sline.reason());
+    theMessage.sline.set(theMessage.sline.version, static_cast<Http::StatusCode>(code), NULL);
 }
 
 int
@@ -303,9 +308,11 @@ Adaptation::Ecap::StatusLineRep::statusCode() const
 }
 
 void
-Adaptation::Ecap::StatusLineRep::reasonPhrase(const Area &str)
+Adaptation::Ecap::StatusLineRep::reasonPhrase(const Area &)
 {
-    theMessage.sline.set(theMessage.sline.version, theMessage.sline.status(), str.toString().c_str());
+    // Squid does not support external custom reason phrases so we have
+    // to just reset it (in case there was a custom internal reason set)
+    theMessage.sline.resetReason();
 }
 
 Adaptation::Ecap::StatusLineRep::Area
@@ -361,8 +368,8 @@ Adaptation::Ecap::BodyRep::bodySize() const
 /* MessageRep */
 
 Adaptation::Ecap::MessageRep::MessageRep(HttpMsg *rawHeader):
-        theMessage(rawHeader), theFirstLineRep(NULL),
-        theHeaderRep(NULL), theBodyRep(NULL)
+    theMessage(rawHeader), theFirstLineRep(NULL),
+    theHeaderRep(NULL), theBodyRep(NULL)
 {
     Must(theMessage.header); // we do not want to represent a missing message
 
@@ -453,3 +460,4 @@ const libecap::Body *Adaptation::Ecap::MessageRep::body() const
 {
     return theBodyRep;
 }
+

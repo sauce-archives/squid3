@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Die aangevraagde URL kon nie verkry word nie</title>
 <style type="text/css"><!-- 
@@ -20,18 +21,18 @@ body
 <p><b>Ongeldige versoek</b>-fout is teëgekom tydens verwerking van die navraag:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>Enkele moontlike probleme is:</p>
 <ul>
 <li id="missing-method"><p>Ontbrekende of onbekende navraagmetode.</p></li>
 <li id="missing-url"><p>Ontbrekende URL.</p></li>
-<li id="missing-protocol"><p>Ontbrekende HTTP-identifiseerder (HTTP/1.0)</p></li>
+<li id="missing-protocol"><p>Ontbrekende HTTP-identifiseerder (HTTP/1.0).</p></li>
 <li><p>Navraag is te groot.</p></li>
 <li><p>"Content-Length" ontbreek vir POST- of PUT-navrae.</p></li>
 <li><p>Ongeldige karakter in gasheernaam; onderstreep word nie toegelaat nie.</p></li>
-<li><p></p></li>
+<li><p>HTTP/1.1 <q>Expect:</q> feature is being asked from an HTTP/1.0 software.</p></li>
 </ul>
 
 <p>Die kasbediener se administrateur is <a href="mailto:%w%W">%w</a>.</p>

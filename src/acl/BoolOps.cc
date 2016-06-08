@@ -1,8 +1,15 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "acl/BoolOps.h"
 #include "acl/Checklist.h"
 #include "Debug.h"
-#include "wordlist.h"
 
 /* Acl::NotNode */
 
@@ -10,6 +17,7 @@ Acl::NotNode::NotNode(ACL *acl)
 {
     assert(acl);
     name[0] = '!';
+    name[1] = '\0';
     strncat(&name[1], acl->name, sizeof(name)-1-1);
     add(acl);
 }
@@ -52,11 +60,11 @@ Acl::NotNode::clone() const
     return NULL;
 }
 
-wordlist*
+SBufList
 Acl::NotNode::dump() const
 {
-    wordlist *text = NULL;
-    wordlistAdd(&text, name);
+    SBufList text;
+    text.push_back(SBuf(name));
     return text;
 }
 
@@ -108,6 +116,12 @@ Acl::OrNode::clone() const
     return new OrNode;
 }
 
+bool
+Acl::OrNode::bannedAction(ACLChecklist *, Nodes::const_iterator) const
+{
+    return false;
+}
+
 int
 Acl::OrNode::doMatch(ACLChecklist *checklist, Nodes::const_iterator start) const
 {
@@ -115,6 +129,8 @@ Acl::OrNode::doMatch(ACLChecklist *checklist, Nodes::const_iterator start) const
 
     // find the first node that matches, but stop if things go wrong
     for (Nodes::const_iterator i = start; i != nodes.end(); ++i) {
+        if (bannedAction(checklist, i))
+            continue;
         if (checklist->matchChild(this, i, *i)) {
             lastMatch_ = i;
             return 1;
@@ -134,3 +150,4 @@ Acl::OrNode::parse()
     // Not implemented: OrNode cannot be configured directly. See Acl::AnyOf.
     assert(false);
 }
+

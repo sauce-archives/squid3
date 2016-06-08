@@ -1,8 +1,17 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_CLIENTREQUESTCONTEXT_H
 #define SQUID_CLIENTREQUESTCONTEXT_H
 
 #include "base/RefCount.h"
 #include "cbdata.h"
+#include "helper/forward.h"
 #include "ipcache.h"
 
 #if USE_ADAPTATION
@@ -13,8 +22,6 @@ class ACLChecklist;
 class ClientHttpRequest;
 class DnsLookupDetails;
 class ErrorState;
-
-class HelperReply;
 
 class ClientRequestContext : public RefCountable
 {
@@ -31,16 +38,16 @@ public:
     void clientAccessCheck2();
     void clientAccessCheckDone(const allow_t &answer);
     void clientRedirectStart();
-    void clientRedirectDone(const HelperReply &reply);
+    void clientRedirectDone(const Helper::Reply &reply);
     void clientStoreIdStart();
-    void clientStoreIdDone(const HelperReply &reply);
+    void clientStoreIdDone(const Helper::Reply &reply);
     void checkNoCache();
     void checkNoCacheDone(const allow_t &answer);
 #if USE_ADAPTATION
 
     void adaptationAccessCheck();
 #endif
-#if USE_SSL
+#if USE_OPENSSL
     /**
      * Initiates and start the acl checklist to check if the a CONNECT
      * request must be bumped.
@@ -77,7 +84,7 @@ public:
     bool interpreted_req_hdrs;
     bool tosToClientDone;
     bool nfmarkToClientDone;
-#if USE_SSL
+#if USE_OPENSSL
     bool sslBumpCheckDone;
 #endif
     ErrorState *error; ///< saved error page for centralized/delayed processing
@@ -88,3 +95,4 @@ private:
 };
 
 #endif /* SQUID_CLIENTREQUESTCONTEXT_H */
+

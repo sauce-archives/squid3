@@ -1,3 +1,10 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 include $(top_srcdir)/src/Common.am
 include $(top_srcdir)/src/TestHeaders.am
 
@@ -133,12 +140,18 @@ libacls_la_SOURCES = \
 EXTRA_libacls_la_SOURCES =
 
 SSL_ACLS = \
+	AtStep.cc \
+	AtStep.h \
+	AtStepData.cc \
+	AtStepData.h \
         CertificateData.cc \
         CertificateData.h  \
         Certificate.cc \
         Certificate.h  \
 	ServerCertificate.cc \
 	ServerCertificate.h \
+	ServerName.cc \
+	ServerName.h \
         SslError.cc \
         SslError.h \
         SslErrorData.cc \
@@ -147,6 +160,14 @@ SSL_ACLS = \
 if ENABLE_SSL
 libacls_la_SOURCES += $(SSL_ACLS)
 endif
+
+if USE_ADAPTATION
+libacls_la_SOURCES += AdaptationService.h \
+	AdaptationService.cc \
+	AdaptationServiceData.h \
+	AdaptationServiceData.cc
+endif
+
 
 EXTRA_libacls_la_SOURCES += $(SSL_ACLS)
 

@@ -1,9 +1,14 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+
 #
 #  Makefile for the Squid Portability Library
 #
 
 include $(top_srcdir)/src/Common.am
-
 
 # Ideally this would be 100% inline functions and macro wrappers.
 
@@ -25,17 +30,25 @@ libcompat_squid_la_SOURCES = \
 	eui64_aton.h \
 	eui64_aton.c \
 	fdsetsize.h \
+	getaddrinfo.cc \
 	getaddrinfo.h \
+	getnameinfo.cc \
 	getnameinfo.h \
 	GnuRegex.c \
 	GnuRegex.h \
+	inet_ntop.cc \
 	inet_ntop.h \
+	inet_pton.cc \
 	inet_pton.h \
 	initgroups.h \
+	memrchr.cc \
+	memrchr.h \
 	osdetect.h \
 	psignal.h \
 	shm.cc \
 	shm.h \
+	statvfs.h \
+	statvfs.cc \
 	stdio.h \
 	stdvarargs.h \
 	strnstr.cc \
@@ -81,8 +94,7 @@ TESTS += testPreCompiler
 
 testPreCompiler_SOURCES= \
 	testPreCompiler.h \
-	testPreCompiler.cc \
-	$(top_srcdir)/src/tests/testMain.cc
+	testPreCompiler.cc
 testPreCompiler_LDADD= $(SQUID_CPPUNIT_LA) $(SQUID_CPPUNIT_LIBS)
 testPreCompiler_LDFLAGS=
 

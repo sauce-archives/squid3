@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>Directorijs: %U</title>
 <style type="text/css"><!--
@@ -19,13 +20,13 @@ body
 <h4>Directorija saturs:</h4>
 
 <blockquote id="data">
-<pre id="dirmsg"></pre>
+<pre id="dirmsg">%z</pre>
 </blockquote>
 
 <table id="dirlisting" summary="Direktorija saraksts">
 <tr>
 <th><a href="../"><img border="0" src="/squid-internal-static/icons/silk/arrow_up.png" alt=""></a></th>
-<th nowrap="nowrap"><a href="../">Augstāks Direktorijs</a> (<a href="/">Root Directory</a>)</th>
+<th nowrap="nowrap"><a href="../">Vecākdirektorijs</a> (<a href="/">Saknes direktorijs</a>)</th>
 </tr>
 
 %g

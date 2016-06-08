@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>خطا: آدرس درخواست شده را نمی‌توانست دریافت شود</title>
 <style type="text/css"><!-- 
@@ -12,15 +13,15 @@ body
 </head><body id="%c">
 <div id="titles">
 <h1>خطا</h1>
-<h2></h2>
+<h2>The requested URL could not be retrieved</h2>
 </div>
 <hr>
 
 <div id="content">
-<p><b>درخواست نامعتبر</b> این خطا در زمان پردازش درخواست روی داده بود:</p>
+<p><b>درخواست نامعتبر</b> این خطا در زمان پردازش این درخواست روی داده بود:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>بعضی از مشکلات احتمالی:</p>
@@ -34,7 +35,7 @@ body
 <li><p>HTTP/1.1 <q>Expect:</q> feature is being asked from an HTTP/1.0 software.</p></li>
 </ul>
 
-<p></p>
+<p>Your cache administrator is <a href="mailto:%w%W">%w</a>.</p>
 <br>
 </div>
 

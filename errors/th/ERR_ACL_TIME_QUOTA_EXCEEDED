@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERROR: ไม่สามารถเรียกดู URL ที่ได้รับการร้องขอ</title>
 <style type="text/css"><!-- 
@@ -11,7 +12,7 @@ body
  --></style>
 </head><body id="%c">
 <div id="titles">
-<h1></h1>
+<h1>ERROR</h1>
 <h2>ไม่สามารถเรียกดู URL ที่ได้รับการร้องขอ</h2>
 </div>
 <hr>
@@ -20,11 +21,11 @@ body
 <p>พบความผิดพลาดดังต่อไปนี้ระหว่างที่พยายามเรียกดู URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Time Quota Exceeded.</b></p>
 </blockquote>
 
-<p></p>
-<p></p>
+<p>This proxy limits your time online with a quota. Your time budget is now empty but will be refilled when the configured time period starts again.</p>
+<p>These limits have been established by the Internet Service Provider who operates this cache. Please contact them directly if you feel this is an error.</p>
 
 <p>ผู้ดูแลระบบแคชของคุณคือ <a href="mailto:%w%W">%w</a></p>
 <br>
@@ -32,7 +33,7 @@ body
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Generated %T by %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

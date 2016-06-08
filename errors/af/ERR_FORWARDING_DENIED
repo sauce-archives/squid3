@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Die aangevraagde URL kon nie verkry word nie</title>
 <style type="text/css"><!-- 
@@ -23,7 +24,7 @@ body
 <p><b>Aanstuur geweier.</b></p>
 </blockquote>
 
-<p></p>
+<p>This cache will not forward your request because it is trying to enforce a sibling relationship. Perhaps the client at %i is a cache which has been misconfigured.</p>
 
 <p>Die kasbediener se administrateur is <a href="mailto:%w%W">%w</a>.</p>
 

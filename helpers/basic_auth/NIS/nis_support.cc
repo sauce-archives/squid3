@@ -1,17 +1,18 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * Written By Rabellino Sergio (rabellino@di.unito.it) For Solaris 2.x
  */
 #include "squid.h"
 
-#if HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#if HAVE_STDIO_H
-#include <stdio.h>
-#endif
-#if HAVE_STRING_H
-#include <string.h>
-#endif
+#include <cstdlib>
+#include <cstring>
 #if HAVE_SYSLOG_H
 #include <syslog.h>
 #endif
@@ -27,15 +28,16 @@
 #define BOOL_DEFINED
 #endif
 
+#if HAVE_RPCSVC_YPCLNT_H
 #include <rpcsvc/ypclnt.h>
-
+#endif
 #if HAVE_RPCSVC_YP_PROT_H
 #include <rpcsvc/yp_prot.h>
 #endif
 
 #include "nis_support.h"
 
-#define NO_YPERR 0		/* There is no error */
+#define NO_YPERR 0      /* There is no error */
 
 char *
 get_nis_password(char *user, char *nisdomain, char *nismap)
@@ -67,9 +69,10 @@ get_nis_password(char *user, char *nisdomain, char *nismap)
     case YPERR_YPBIND:
         syslog(LOG_ERR, "Squid Authentication through ypbind failure: can't communicate with ypbind");
         return NULL;
-    case YPERR_KEY:		/* No such key in map */
+    case YPERR_KEY:     /* No such key in map */
         return NULL;
     default:
         return NULL;
     }
 }
+

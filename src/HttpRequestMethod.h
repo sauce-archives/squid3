@@ -1,9 +1,16 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_HTTPREQUESTMETHOD_H
 #define SQUID_HTTPREQUESTMETHOD_H
 
 #include "http/MethodType.h"
-#include "SquidString.h"
-#include "SquidString.h"
+#include "SBuf.h"
 
 class SquidConfig;
 
@@ -41,7 +48,7 @@ public:
 
     HttpRequestMethod & operator = (Http::MethodType const aMethod) {
         theMethod = aMethod;
-        theImage.clean();
+        theImage.clear();
         return *this;
     }
 
@@ -73,8 +80,8 @@ public:
      */
     Http::MethodType id() const { return theMethod; }
 
-    /** Get a char string representation of the method. */
-    char const * image() const;
+    /** Get a string representation of the method. */
+    const SBuf &image() const;
 
     /// Whether this method is defined as a "safe" in HTTP/1.1
     /// see RFC 2616 section 9.1.1
@@ -112,10 +119,8 @@ public:
     bool purgesOthers() const;
 
 private:
-    static const char *RequestMethodStr[];
-
     Http::MethodType theMethod; ///< Method type
-    String theImage;     ///< Used for storing the Http::METHOD_OTHER only. A copy of the parsed method text.
+    SBuf theImage;     ///< Used for storing the Http::METHOD_OTHER only. A copy of the parsed method text.
 };
 
 inline std::ostream &
@@ -125,16 +130,5 @@ operator << (std::ostream &os, HttpRequestMethod const &method)
     return os;
 }
 
-inline const char*
-RequestMethodStr(const Http::MethodType m)
-{
-    return HttpRequestMethod(m).image();
-}
-
-inline const char*
-RequestMethodStr(const HttpRequestMethod& m)
-{
-    return m.image();
-}
-
 #endif /* SQUID_HTTPREQUESTMETHOD_H */
+

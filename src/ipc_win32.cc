@@ -1,41 +1,20 @@
 /*
- * DEBUG: section 54    Windows Interprocess Communication
- * AUTHOR: Andrey Shorin <tolsty@tushino.com>
- * AUTHOR: Guido Serassio <serassio@squid-cache.org>
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 54    Windows Interprocess Communication */
 
 #include "squid.h"
 #include "cache_cf.h"
 #include "comm.h"
+#include "comm/Connection.h"
 #include "fd.h"
 #include "fde.h"
+#include "globals.h"
 #include "ip/Address.h"
 #include "rfc1738.h"
 #include "SquidConfig.h"
@@ -43,13 +22,11 @@
 #include "SquidTime.h"
 #include "tools.h"
 
-#ifndef _MSWSOCK_
+#include <cerrno>
+#if HAVE_MSWSOCK_H
 #include <mswsock.h>
 #endif
 #include <process.h>
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
 
 struct ipc_params {
     int type;
@@ -157,9 +134,9 @@ ipcCreate(int type, const char *prog, const char *const args[], const char *name
                                 COMM_NOCLOEXEC,
                                 name);
         prfd = pwfd = comm_open(SOCK_STREAM,
-                                IPPROTO_TCP,	/* protocol */
+                                IPPROTO_TCP,    /* protocol */
                                 local_addr,
-                                0,			/* blocking */
+                                0,          /* blocking */
                                 name);
     } else if (type == IPC_UDP_SOCKET) {
         crfd = cwfd = comm_open(SOCK_DGRAM,
@@ -203,30 +180,30 @@ ipcCreate(int type, const char *prog, const char *const args[], const char *name
 // AYJ: these flags should be neutral, but if not IPv6 version needs adding
     if (type == IPC_TCP_SOCKET || type == IPC_UDP_SOCKET) {
 
-        Ip::Address::InitAddrInfo(aiPS);
+        Ip::Address::InitAddr(aiPS);
 
         if (getsockname(pwfd, aiPS->ai_addr, &(aiPS->ai_addrlen) ) < 0) {
             debugs(54, DBG_CRITICAL, "ipcCreate: getsockname: " << xstrerror());
-            Ip::Address::FreeAddrInfo(aiPS);
+            Ip::Address::FreeAddr(aiPS);
             return ipcCloseAllFD(prfd, pwfd, crfd, cwfd);
         }
 
         tmp_addr = *aiPS;
-        Ip::Address::FreeAddrInfo(aiPS);
+        Ip::Address::FreeAddr(aiPS);
 
         debugs(54, 3, "ipcCreate: FD " << pwfd << " sockaddr " << tmp_addr );
 
-        Ip::Address::InitAddrInfo(aiCS);
+        Ip::Address::InitAddr(aiCS);
 
         if (getsockname(crfd, aiCS->ai_addr, &(aiCS->ai_addrlen) ) < 0) {
             debugs(54, DBG_CRITICAL, "ipcCreate: getsockname: " << xstrerror());
-            Ip::Address::FreeAddrInfo(aiCS);
+            Ip::Address::FreeAddr(aiCS);
             return ipcCloseAllFD(prfd, pwfd, crfd, cwfd);
         }
 
         tmp_addr.setEmpty();
         tmp_addr = *aiCS;
-        Ip::Address::FreeAddrInfo(aiCS);
+        Ip::Address::FreeAddr(aiCS);
 
         debugs(54, 3, "ipcCreate: FD " << crfd << " sockaddr " << tmp_addr );
     }
@@ -265,7 +242,7 @@ ipcCreate(int type, const char *prog, const char *const args[], const char *name
     }
 
     /* NP: tmp_addr was left with eiether empty or aiCS in Ip::Address format */
-    if (comm_connect_addr(pwfd, tmp_addr) == COMM_ERROR) {
+    if (comm_connect_addr(pwfd, tmp_addr) == Comm::COMM_ERROR) {
         CloseHandle((HANDLE) thread);
         return ipcCloseAllFD(prfd, pwfd, -1, -1);
     }
@@ -400,7 +377,8 @@ ipc_thread_1(void *in_params)
     Ip::Address PS = params->PS;
     Ip::Address local_addr = params->local_addr;
 
-    buf1 = (char *)xcalloc(1, 8192);
+    const size_t bufSz = 8192;
+    buf1 = (char *)xcalloc(1, bufSz);
     strcpy(buf1, params->prog);
     prog = strtok(buf1, w_space);
 
@@ -422,12 +400,12 @@ ipc_thread_1(void *in_params)
 
         debugs(54, 3, "ipcCreate: CHILD accepted new FD " << fd);
         comm_close(crfd);
-        snprintf(buf1, 8191, "%s CHILD socket", prog);
+        snprintf(buf1, bufSz-1, "%s CHILD socket", prog);
         fd_open(fd, FD_SOCKET, buf1);
         fd_table[fd].flags.ipc = 1;
         cwfd = crfd = fd;
     } else if (type == IPC_UDP_SOCKET) {
-        if (comm_connect_addr(crfd, params->PS) == COMM_ERROR)
+        if (comm_connect_addr(crfd, params->PS) == Comm::COMM_ERROR)
             goto cleanup;
     }
 
@@ -440,8 +418,8 @@ ipc_thread_1(void *in_params)
     }
 
     PutEnvironment();
-    memset(buf1, '\0', sizeof(buf1));
-    x = recv(crfd, (void *)buf1, 8191, 0);
+    memset(buf1, '\0', bufSz);
+    x = recv(crfd, (void *)buf1, bufSz-1, 0);
 
     if (x < 0) {
         debugs(54, DBG_CRITICAL, "ipcCreate: CHILD: OK read test failed");
@@ -468,7 +446,7 @@ ipc_thread_1(void *in_params)
     }
 
     if (type == IPC_UDP_SOCKET) {
-        snprintf(buf1, 8192, "%s(%ld) <-> ipc CHILD socket", prog, -1L);
+        snprintf(buf1, bufSz, "%s(%ld) <-> ipc CHILD socket", prog, -1L);
         crfd_ipc = cwfd_ipc = comm_open(SOCK_DGRAM, IPPROTO_UDP, local_addr, 0, buf1);
 
         if (crfd_ipc < 0) {
@@ -477,7 +455,7 @@ ipc_thread_1(void *in_params)
             goto cleanup;
         }
 
-        snprintf(buf1, 8192, "%s(%ld) <-> ipc PARENT socket", prog, -1L);
+        snprintf(buf1, bufSz, "%s(%ld) <-> ipc PARENT socket", prog, -1L);
         prfd_ipc = pwfd_ipc = comm_open(SOCK_DGRAM, IPPROTO_UDP, local_addr, 0, buf1);
 
         if (pwfd_ipc < 0) {
@@ -486,46 +464,46 @@ ipc_thread_1(void *in_params)
             goto cleanup;
         }
 
-        Ip::Address::InitAddrInfo(aiPS_ipc);
+        Ip::Address::InitAddr(aiPS_ipc);
 
         if (getsockname(pwfd_ipc, aiPS_ipc->ai_addr, &(aiPS_ipc->ai_addrlen)) < 0) {
             debugs(54, DBG_CRITICAL, "ipcCreate: getsockname: " << xstrerror());
             ipcSend(cwfd, err_string, strlen(err_string));
-            Ip::Address::FreeAddrInfo(aiPS_ipc);
+            Ip::Address::FreeAddr(aiPS_ipc);
             goto cleanup;
         }
 
         PS_ipc = *aiPS_ipc;
-        Ip::Address::FreeAddrInfo(aiPS_ipc);
+        Ip::Address::FreeAddr(aiPS_ipc);
 
         debugs(54, 3, "ipcCreate: FD " << pwfd_ipc << " sockaddr " << PS_ipc);
 
-        Ip::Address::InitAddrInfo(aiCS_ipc);
+        Ip::Address::InitAddr(aiCS_ipc);
 
         if (getsockname(crfd_ipc, aiCS_ipc->ai_addr, &(aiCS_ipc->ai_addrlen)) < 0) {
             debugs(54, DBG_CRITICAL, "ipcCreate: getsockname: " << xstrerror());
             ipcSend(cwfd, err_string, strlen(err_string));
-            Ip::Address::FreeAddrInfo(aiCS_ipc);
+            Ip::Address::FreeAddr(aiCS_ipc);
             goto cleanup;
         }
 
         CS_ipc = *aiCS_ipc;
-        Ip::Address::FreeAddrInfo(aiCS_ipc);
+        Ip::Address::FreeAddr(aiCS_ipc);
 
         debugs(54, 3, "ipcCreate: FD " << crfd_ipc << " sockaddr " << CS_ipc);
 
-        if (comm_connect_addr(pwfd_ipc, CS_ipc) == COMM_ERROR) {
+        if (comm_connect_addr(pwfd_ipc, CS_ipc) == Comm::COMM_ERROR) {
             ipcSend(cwfd, err_string, strlen(err_string));
             goto cleanup;
         }
 
         fd = crfd;
 
-        if (comm_connect_addr(crfd_ipc, PS_ipc) == COMM_ERROR) {
+        if (comm_connect_addr(crfd_ipc, PS_ipc) == Comm::COMM_ERROR) {
             ipcSend(cwfd, err_string, strlen(err_string));
             goto cleanup;
         }
-    }				/* IPC_UDP_SOCKET */
+    }               /* IPC_UDP_SOCKET */
 
     t1 = dup(0);
 
@@ -628,7 +606,7 @@ ipc_thread_1(void *in_params)
             goto cleanup;
         }
 
-        x = read(p2c[0], buf1, 8192);
+        x = read(p2c[0], buf1, bufSz-1);
 
         if (x < 0) {
             debugs(54, DBG_CRITICAL, "ipcCreate: CHILD: read FD " << p2c[0] << ": " << xstrerror());
@@ -655,7 +633,7 @@ ipc_thread_1(void *in_params)
             goto cleanup;
         }
 
-        x = read(p2c[0], buf1, 8192);
+        x = read(p2c[0], buf1, bufSz-1);
 
         if (x < 0) {
             debugs(54, DBG_CRITICAL, "ipcCreate: CHILD: read FD " << p2c[0] << ": " << xstrerror());
@@ -673,19 +651,19 @@ ipc_thread_1(void *in_params)
         }
 
         x = send(pwfd_ipc, (const void *)ok_string, strlen(ok_string), 0);
-        x = recv(prfd_ipc, (void *)(buf1 + 200), 8191 - 200, 0);
+        x = recv(prfd_ipc, (void *)(buf1 + 200), bufSz -1 - 200, 0);
         assert((size_t) x == strlen(ok_string)
                && !strncmp(ok_string, buf1 + 200, strlen(ok_string)));
-    }				/* IPC_UDP_SOCKET */
+    }               /* IPC_UDP_SOCKET */
 
-    snprintf(buf1, 8191, "%s(%ld) CHILD socket", prog, (long int) pid);
+    snprintf(buf1, bufSz-1, "%s(%ld) CHILD socket", prog, (long int) pid);
 
     fd_note(fd, buf1);
 
     if (prfd_ipc != -1) {
-        snprintf(buf1, 8191, "%s(%ld) <-> ipc CHILD socket", prog, (long int) pid);
+        snprintf(buf1, bufSz-1, "%s(%ld) <-> ipc CHILD socket", prog, (long int) pid);
         fd_note(crfd_ipc, buf1);
-        snprintf(buf1, 8191, "%s(%ld) <-> ipc PARENT socket", prog, (long int) pid);
+        snprintf(buf1, bufSz-1, "%s(%ld) <-> ipc PARENT socket", prog, (long int) pid);
         fd_note(prfd_ipc, buf1);
     }
 
@@ -711,7 +689,7 @@ ipc_thread_1(void *in_params)
         goto cleanup;
     }
 
-    snprintf(buf1, 8191, "%ld\n", (long int) pid);
+    snprintf(buf1, bufSz-1, "%ld\n", (long int) pid);
 
     if (-1 == ipcSend(cwfd, buf1, strlen(buf1)))
         goto cleanup;
@@ -720,7 +698,7 @@ ipc_thread_1(void *in_params)
 
     /* cycle */
     for (;;) {
-        x = recv(crfd, (void *)buf1, 8192, 0);
+        x = recv(crfd, (void *)buf1, bufSz-1, 0);
 
         if (x <= 0) {
             debugs(54, 3, "ipc(" << prog << "," << pid << "): " << x << " bytes received from parent. Exiting...");
@@ -788,11 +766,8 @@ cleanup:
     if (!retval)
         debugs(54, 2, "ipc(" << prog << "," << pid << "): normal exit");
 
-    if (buf1)
-        xfree(buf1);
-
-    if (prog)
-        xfree(prog);
+    xfree(buf1);
+    xfree(prog);
 
     if (thread)
         CloseHandle(thread);
@@ -817,13 +792,14 @@ ipc_thread_2(void *in_params)
     int send_fd = params->send_fd;
     char *prog = xstrdup(params->prog);
     pid_t pid = params->pid;
-    char *buf2 = (char *)xcalloc(1, 8192);
+    const size_t bufSz = 8192;
+    char *buf2 = (char *)xcalloc(1, bufSz);
 
     for (;;) {
         if (type == IPC_TCP_SOCKET)
-            x = read(rfd, buf2, 8192);
+            x = read(rfd, buf2, bufSz-1);
         else
-            x = recv(rfd, (void *)buf2, 8192, 0);
+            x = recv(rfd, (void *)buf2, bufSz-1, 0);
 
         if ((x <= 0 && type == IPC_TCP_SOCKET) ||
                 (x < 0 && type == IPC_UDP_SOCKET)) {
@@ -836,7 +812,6 @@ ipc_thread_2(void *in_params)
 
         if (type == IPC_UDP_SOCKET && !strcmp(buf2, shutdown_string)) {
             debugs(54, 3, "ipc(" << prog << "," << pid << "): request for shutdown received. Exiting...");
-
             break;
         }
 
@@ -864,3 +839,4 @@ ipc_thread_2(void *in_params)
     xfree(buf2);
     return 0;
 }
+

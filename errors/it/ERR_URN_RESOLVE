@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERRORE: non è possibile accedere alla URN richiesta</title>
 <style type="text/css"><!-- 
@@ -12,7 +13,7 @@ body
 </head><body id="%c">
 <div id="titles">
 <h1>ERRORE</h1>
-<h2>Non è stato possibile ottenere una URL corrispondente alla URN richiesta.</h2>
+<h2>Non è stato possibile ottenere una URL corrispondente alla URN richiesta</h2>
 </div>
 <hr>
 
@@ -20,7 +21,7 @@ body
 <p>Mentre si cercava di accedere alla URN <a href="%U">%U</a> si è presentato il seguente errore:</p>
 
 <blockquote id="error">
-<p><b>Impossibile risolvere la URN.</b></p>
+<p><b>Impossibile risolvere la URN</b></p>
 </blockquote>
 
 <p>Ehi, non ci si deve aspettare granché dalle URN su %T :)</p>
@@ -31,7 +32,7 @@ body
 
 <hr>
 <div id="footer">
-<p>Generato da %h (%s) il %T.</p>
+<p>Generato da %h (%s) il %T</p>
 <!-- %c -->
 </div>
 </body></html>

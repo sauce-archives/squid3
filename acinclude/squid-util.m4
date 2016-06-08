@@ -1,30 +1,9 @@
-dnl 
-dnl AUTHOR: Francesco Chemolli
-dnl
-dnl SQUID Web Proxy Cache          http://www.squid-cache.org/
-dnl ----------------------------------------------------------
-dnl Squid is the result of efforts by numerous individuals from
-dnl the Internet community; see the CONTRIBUTORS file for full
-dnl details.   Many organizations have provided support for Squid's
-dnl development; see the SPONSORS file for full details.  Squid is
-dnl Copyrighted (C) 2001 by the Regents of the University of
-dnl California; see the COPYRIGHT file for full details.  Squid
-dnl incorporates software developed and/or copyrighted by other
-dnl sources; see the CREDITS file for full details.
-dnl
-dnl This program is free software; you can redistribute it and/or modify
-dnl it under the terms of the GNU General Public License as published by
-dnl the Free Software Foundation; either version 2 of the License, or
-dnl (at your option) any later version.
-dnl
-dnl This program is distributed in the hope that it will be useful,
-dnl but WITHOUT ANY WARRANTY; without even the implied warranty of
-dnl MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-dnl GNU General Public License for more details.
-dnl
-dnl You should have received a copy of the GNU General Public License
-dnl along with this program; if not, write to the Free Software
-dnl Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
 
 dnl save main environment variables to variables to the namespace defined by the
 dnl first argument (prefix)
@@ -40,6 +19,7 @@ $1_LDFLAGS="${LDFLAGS}"
 $1_LIBS="${LIBS}"
 $1_CC="${CC}"
 $1_CXX="${CXX}"
+$1_CPPFLAGS="${CPPFLAGS}"
 $1_squid_saved_vars="$2"
 for squid_util_var_tosave in $$1_squid_saved_vars
 do
@@ -59,6 +39,7 @@ unset $1_LDFLAGS
 unset $1_LIBS
 unset $1_CC
 unset $1_CXX
+unset $1_CPPFLAGS
 for squid_util_var_tosave in $$1_squid_saved_vars
 do
     unset ${squid_util_var_tosave}
@@ -77,6 +58,7 @@ LDFLAGS="${$1_LDFLAGS}"
 LIBS="${$1_LIBS}"
 CC="${$1_CC}"
 CXX="${$1_CXX}"
+CPPFLAGS="${$1_CPPFLAGS}"
 for squid_util_var_tosave in $$1_squid_saved_vars
 do
     squid_util_var_tosave2="\$$1_${squid_util_var_tosave}"

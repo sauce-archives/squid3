@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FEL: Beg&auml;rd URL kunde inte h&auml;mtas</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p><b>Felaktigt Svarsmeddelande</b> fel p&aring;tr&auml;ffades n&auml;r f&ouml;rfr&aring;gan skulle behandlas:</p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>%R</pre>
 </blockquote>
 
 <p>HTTP svarsmeddelandet ifr&aring;n den kontaktade servern &auml;r felaktigt och kunde inte tolkas. V&auml;nligen kontakta den ansvariga f&ouml;r webbservern ifr&aring;ga.</p>

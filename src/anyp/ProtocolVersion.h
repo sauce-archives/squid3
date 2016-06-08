@@ -1,11 +1,17 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ANYP_PROTOCOLVERSION_H
 #define SQUID_ANYP_PROTOCOLVERSION_H
 
 #include "anyp/ProtocolType.h"
 
-#if HAVE_OSTREAM
 #include <ostream>
-#endif
 
 namespace AnyP
 {
@@ -87,7 +93,8 @@ public:
 inline std::ostream &
 operator << (std::ostream &os, const AnyP::ProtocolVersion &v)
 {
-    return (os << AnyP::ProtocolType_str[v.protocol] << v.major << '.' << v.minor);
+    return (os << AnyP::ProtocolType_str[v.protocol] << '/' << v.major << '.' << v.minor);
 }
 
 #endif /* SQUID_ANYP_PROTOCOLVERSION_H */
+

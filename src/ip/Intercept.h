@@ -1,9 +1,13 @@
 /*
- * DEBUG: section 89    NAT / IP Interception
- * AUTHOR: Robert Collins
- * AUTHOR: Amos Jeffries
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 89    NAT / IP Interception */
+
 #ifndef SQUID_IP_IPINTERCEPT_H
 #define SQUID_IP_IPINTERCEPT_H
 
@@ -37,14 +41,14 @@ public:
      * Detects IPv6 and IPv4 level of support matches the address being listened on
      * and if the compiled v2/v4 is usable as far down as a bind()ing.
      *
-     * \param test    Address set on the http(s)_port being checked.
+     * \param test    Address set on the squid.conf *_port being checked.
      * \retval true   TPROXY is available.
      * \retval false  TPROXY is not available.
      */
     bool ProbeForTproxy(Address &test);
 
     /**
-     \retval 0	Full transparency is disabled.
+     \retval 0  Full transparency is disabled.
      \retval 1  Full transparency is enabled and active.
      */
     inline int TransparentActive() { return transparentActive_; };
@@ -65,7 +69,7 @@ public:
     void StopTransparency(const char *str);
 
     /**
-     \retval 0	IP Interception is disabled.
+     \retval 0  IP Interception is disabled.
      \retval 1  IP Interception is enabled and active.
      */
     inline int InterceptActive() { return interceptActive_; };
@@ -152,3 +156,4 @@ extern Intercept Interceptor;
 } // namespace Ip
 
 #endif /* SQUID_IP_IPINTERCEPT_H */
+

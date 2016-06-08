@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERREUR : l'URN demandée n'a pas pu être chargée</title>
 <style type="text/css"><!-- 
@@ -23,7 +24,7 @@ body
 <p><b>Impossible de résoudre l'URN</b></p>
 </blockquote>
 
-<p>Hé! Il ne faut pas attendre grand-chose des URNs avec %T :)</p>
+<p>Hé! Il ne faut pas vous attendre à grand-chose des URNs dans %T :)</p>
 
 <p>Votre administrateur proxy est <a href="mailto:%w%W">%w</a>.</p>
 <br>
@@ -31,7 +32,7 @@ body
 
 <hr>
 <div id="footer">
-<p>Générer le %T par %h (%s)</p>
+<p>Générée le %T par %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

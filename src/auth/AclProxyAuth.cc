@@ -1,61 +1,37 @@
 /*
- * DEBUG: section 28    Access Control
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- *
- * Copyright (c) 2003, Robert Collins <robertc@squid-cache.org>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
+/* DEBUG: section 28    Access Control */
+
 #include "squid.h"
+#include "acl/FilledChecklist.h"
+#include "acl/RegexData.h"
+#include "acl/UserData.h"
+#include "auth/Acl.h"
 #include "auth/AclProxyAuth.h"
 #include "auth/Gadgets.h"
-#include "acl/FilledChecklist.h"
-#include "acl/UserData.h"
-#include "acl/RegexData.h"
-#include "client_side.h"
-#include "HttpRequest.h"
-#include "auth/Acl.h"
 #include "auth/User.h"
 #include "auth/UserRequest.h"
+#include "client_side.h"
+#include "HttpRequest.h"
 
 ACLProxyAuth::~ACLProxyAuth()
 {
     delete data;
 }
 
-ACLProxyAuth::ACLProxyAuth(ACLData<char const *> *newData, char const *theType) : data (newData), type_(theType) {}
+ACLProxyAuth::ACLProxyAuth(ACLData<char const *> *newData, char const *theType) : data(newData), type_(theType) {}
 
-ACLProxyAuth::ACLProxyAuth (ACLProxyAuth const &old) : data (old.data->clone()), type_(old.type_)
+ACLProxyAuth::ACLProxyAuth(ACLProxyAuth const &old) : data(old.data->clone()), type_(old.type_)
 {}
 
 ACLProxyAuth &
-ACLProxyAuth::operator= (ACLProxyAuth const &rhs)
+ACLProxyAuth::operator=(ACLProxyAuth const &rhs)
 {
     data = rhs.data->clone();
     type_ = rhs.type_;
@@ -99,20 +75,20 @@ ACLProxyAuth::match(ACLChecklist *checklist)
     }
 }
 
-wordlist *
+SBufList
 ACLProxyAuth::dump() const
 {
     return data->dump();
 }
 
 bool
-ACLProxyAuth::empty () const
+ACLProxyAuth::empty() const
 {
     return data->empty();
 }
 
 bool
-ACLProxyAuth::valid () const
+ACLProxyAuth::valid() const
 {
     if (authenticateSchemeCount() == 0) {
         debugs(28, DBG_CRITICAL, "Can't use proxy auth because no authentication schemes were compiled.");
@@ -145,7 +121,7 @@ ProxyAuthLookup::checkForAsync(ACLChecklist *cl) const
     /* make sure someone created auth_user_request for us */
     assert(checklist->auth_user_request != NULL);
     assert(checklist->auth_user_request->valid());
-    checklist->auth_user_request->start(LookupDone, checklist);
+    checklist->auth_user_request->start(checklist->request, checklist->al, LookupDone, checklist);
 }
 
 void
@@ -199,3 +175,4 @@ ACLProxyAuth::matchProxyAuth(ACLChecklist *cl)
     checklist->auth_user_request = NULL;
     return result;
 }
+

@@ -1,17 +1,18 @@
-
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #ifndef SQUID_LRUMAP_H
 #define SQUID_LRUMAP_H
 
 #include "SquidTime.h"
-#if HAVE_LIST
+
 #include <list>
-#endif
-#if HAVE_MAP
 #include <map>
-#endif
 
 template <class EntryValue, size_t EntryCost = sizeof(EntryValue)> class LruMap
 {
@@ -215,3 +216,4 @@ LruMap<EntryValue, EntryCost>::touch(LruMap::MapIterator const &i)
 }
 
 #endif
+

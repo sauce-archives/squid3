@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ГРЕШКА: Заявената страница е недостъпна.</title>
 <style type="text/css"><!-- 
@@ -20,15 +21,15 @@ body
 <p>Възникна следната грешка при опит за достъп до: <a href="%U">%U</a></p>
 
 <blockquote id="data">
-<pre></pre>
+<pre>URI Host Conflict</pre>
 </blockquote>
 
-<p></p>
+<p>This means the domain name you are trying to access apparently no longer exists on the machine you are requesting it from.</p>
 
 <p>Възможни грешки:</p>
 <ul>
-<li></li>
-<li></li>
+<li>The domain may have moved very recently. Trying again will resolve that.</li>
+<li>The website may require you to use a local country-based version. Using your ISP provided DNS server(s) should resolve that.</li>
 </ul>
 
 <p>Вашият кеш администратор е <a href="mailto:%w%W">%w</a>.</p>

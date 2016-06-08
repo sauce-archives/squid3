@@ -1,39 +1,18 @@
-
 /*
- * AUTHOR: Benno Rice
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Internet Object Cache  http://squid.nlanr.net/Squid/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from the
- *  Internet community.  Development is led by Duane Wessels of the
- *  National Laboratory for Applied Network Research and funded by the
- *  National Science Foundation.  Squid is Copyrighted (C) 1998 by
- *  Duane Wessels and the University of California San Diego.  Please
- *  see the COPYRIGHT file for full details.  Squid incorporates
- *  software developed and/or copyrighted by other sources.  Please see
- *  the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 83    SSL accelerator support */
 
 #ifndef SQUID_SSL_SUPPORT_H
 #define SQUID_SSL_SUPPORT_H
 
 #include "CbDataList.h"
+#include "SBuf.h"
 #include "ssl/gadgets.h"
 
 #if HAVE_OPENSSL_SSL_H
@@ -48,6 +27,7 @@
 #if HAVE_OPENSSL_ENGINE_H
 #include <openssl/engine.h>
 #endif
+#include <map>
 
 /**
  \defgroup ServerProtocolSSLAPI Server-Side SSL API
@@ -82,6 +62,14 @@ namespace Ssl
 typedef int ssl_error_t;
 
 typedef CbDataList<Ssl::ssl_error_t> Errors;
+
+/// Creates SSL Client connection structure and initializes SSL I/O (Comm and BIO).
+/// On errors, emits DBG_IMPORTANT with details and returns NULL.
+SSL *CreateClient(SSL_CTX *sslContext, const int fd, const char *squidCtx);
+
+/// Creates SSL Server connection structure and initializes SSL I/O (Comm and BIO).
+/// On errors, emits DBG_IMPORTANT with details and returns NULL.
+SSL *CreateServer(SSL_CTX *sslContext, const int fd, const char *squidCtx);
 
 /// An SSL certificate-related error.
 /// Pairs an error code with the certificate experiencing the error.
@@ -146,11 +134,15 @@ GETX509ATTRIBUTE GetX509CAAttribute;
 /// \ingroup ServerProtocolSSLAPI
 GETX509ATTRIBUTE GetX509Fingerprint;
 
+extern const EVP_MD *DefaultSignHash;
+
 /**
   \ingroup ServerProtocolSSLAPI
  * Supported ssl-bump modes
  */
-enum BumpMode {bumpNone = 0, bumpClientFirst, bumpServerFirst, bumpEnd};
+enum BumpMode {bumpNone = 0, bumpClientFirst, bumpServerFirst, bumpPeek, bumpStare, bumpBump, bumpSplice, bumpTerminate, /*bumpErr,*/ bumpEnd};
+
+enum BumpStep {bumpStep1, bumpStep2, bumpStep3};
 
 /**
  \ingroup  ServerProtocolSSLAPI
@@ -203,6 +195,29 @@ ContextMethod contextMethod(int version);
 */
 bool generateUntrustedCert(X509_Pointer & untrustedCert, EVP_PKEY_Pointer & untrustedPkey, X509_Pointer const & cert, EVP_PKEY_Pointer const & pkey);
 
+/// certificates indexed by issuer name
+typedef std::multimap<SBuf, X509 *> CertsIndexedList;
+
+/**
+ \ingroup ServerProtocolSSLAPI
+ * Load PEM-encoded certificates from the given file.
+ */
+bool loadCerts(const char *certsFile, Ssl::CertsIndexedList &list);
+
+/**
+ \ingroup ServerProtocolSSLAPI
+ * Load PEM-encoded certificates to the squid untrusteds certificates
+ * internal DB from the given file.
+ */
+bool loadSquidUntrusted(const char *path);
+
+/**
+ \ingroup ServerProtocolSSLAPI
+ * Removes all certificates from squid untrusteds certificates
+ * internal DB and frees all memory
+ */
+void unloadSquidUntrusted();
+
 /**
   \ingroup ServerProtocolSSLAPI
   * Decide on the kind of certificate and generate a CA- or self-signed one
@@ -227,9 +242,48 @@ SSL_CTX * generateSslContextUsingPkeyAndCertFromMemory(const char * data, AnyP::
 
 /**
   \ingroup ServerProtocolSSLAPI
+  * Create an SSL context using the provided certificate and key
+ */
+SSL_CTX * createSSLContext(Ssl::X509_Pointer & x509, Ssl::EVP_PKEY_Pointer & pkey, AnyP::PortCfg &port);
+
+/**
+ \ingroup ServerProtocolSSLAPI
+ * Chain signing certificate and chained certificates to an SSL Context
+ */
+void chainCertificatesToSSLContext(SSL_CTX *sslContext, AnyP::PortCfg &port);
+
+/**
+ \ingroup ServerProtocolSSLAPI
+ * Configure a previously unconfigured SSL context object.
+ */
+void configureUnconfiguredSslContext(SSL_CTX *sslContext, Ssl::CertSignAlgorithm signAlgorithm,AnyP::PortCfg &port);
+
+/**
+  \ingroup ServerProtocolSSLAPI
+  * Generates a certificate and a private key using provided properies and set it
+  * to SSL object.
+ */
+bool configureSSL(SSL *ssl, CertificateProperties const &properties, AnyP::PortCfg &port);
+
+/**
+  \ingroup ServerProtocolSSLAPI
+  * Read private key and certificate from memory and set it to SSL object
+  * using their.
+ */
+bool configureSSLUsingPkeyAndCertFromMemory(SSL *ssl, const char *data, AnyP::PortCfg &port);
+
+/**
+  \ingroup ServerProtocolSSLAPI
   * Adds the certificates in certList to the certificate chain of the SSL context
  */
 void addChainToSslContext(SSL_CTX *sslContext, STACK_OF(X509) *certList);
+
+/**
+  \ingroup ServerProtocolSSLAPI
+  * Configures sslContext to use squid untrusted certificates internal list
+  * to complete certificate chains when verifies SSL servers certificates.
+ */
+void useSquidUntrusted(SSL_CTX *sslContext);
 
 /**
  \ingroup ServerProtocolSSLAPI
@@ -277,6 +331,28 @@ int asn1timeToString(ASN1_TIME *tm, char *buf, int len);
    \return true if SNI set false otherwise
 */
 bool setClientSNI(SSL *ssl, const char *fqdn);
+
+int OpenSSLtoSquidSSLVersion(int sslVersion);
+
+#if OPENSSL_VERSION_NUMBER < 0x00909000L
+SSL_METHOD *method(int version);
+#else
+const SSL_METHOD *method(int version);
+#endif
+
+const SSL_METHOD *serverMethod(int version);
+
+/**
+   \ingroup ServerProtocolSSLAPI
+   * Initializes the shared session cache if configured
+*/
+void initialize_session_cache();
+
+/**
+   \ingroup ServerProtocolSSLAPI
+   * Destroy the shared session cache if configured
+*/
+void destruct_session_cache();
 } //namespace Ssl
 
 #if _SQUID_WINDOWS_
@@ -310,3 +386,4 @@ int SSL_set_fd(SSL *ssl, int fd)
 #endif /* _SQUID_WINDOWS_ */
 
 #endif /* SQUID_SSL_SUPPORT_H */
+

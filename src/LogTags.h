@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_SRC_LOGTAGS_H
 #define SQUID_SRC_LOGTAGS_H
 
@@ -26,6 +34,7 @@ typedef enum {
     LOG_TCP_DENIED_REPLY,
     LOG_TCP_OFFLINE_HIT,
     LOG_TCP_REDIRECT,
+    LOG_TCP_TUNNEL,             // a binary tunnel was established for this transaction
     LOG_UDP_HIT,
     LOG_UDP_MISS,
     LOG_UDP_DENIED,
@@ -60,3 +69,4 @@ inline LogTags &operator++ (LogTags &aLogType)
 }
 
 #endif
+

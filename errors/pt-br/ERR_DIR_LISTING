@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>Diretório: %U</title>
 <style type="text/css"><!--
@@ -25,7 +26,7 @@ body
 <table id="dirlisting" summary="Listagem do diretório">
 <tr>
 <th><a href="../"><img border="0" src="/squid-internal-static/icons/silk/arrow_up.png" alt=""></a></th>
-<th nowrap="nowrap"><a href="../">Diretório pai</a> (<a href="/">Root Directory</a>)</th>
+<th nowrap="nowrap"><a href="../">Diretório pai</a> (<a href="/">Diretório raiz</a>)</th>
 </tr>
 
 %g

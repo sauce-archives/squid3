@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERREUR : L'URL demandada a pas pogut èsser cargada</title>
 <style type="text/css"><!-- 
@@ -23,9 +24,9 @@ body
 <p><b>La requèsta o la responsa es tròp gròssa.</b></p>
 </blockquote>
 
-<p></p>
-<p></p>
-<p></p>
+<p>If you are making a POST or PUT request, then the item you are trying to upload is too large.</p>
+<p>If you are making a GET request, then the item you are trying to download is too large.</p>
+<p>These limits have been established by the Internet Service Provider who operates this cache. Please contact them directly if you feel this is an error.</p>
 
 <p>Vòstre administrator d'amagatal es <a href="mailto:%w">%w</a>.</p>
 <br>

@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef _SQUID_COMPAT_H
 #define _SQUID_COMPAT_H
 
@@ -31,6 +39,17 @@
 #endif
 #ifndef _XOPEN_SOURCE_EXTENDED
 #define _XOPEN_SOURCE_EXTENDED 1
+#endif
+#endif
+
+/* Solaris 10 has a broken definition for minor_t in IPFilter compat.
+ * We must pre-define before doing anything with OS headers so the OS
+ * do not. Then un-define it before using the IPFilter *_compat.h headers.
+ */
+#if IPF_TRANSPARENT && USE_SOLARIS_IPFILTER_MINOR_T_HACK
+/* But we only need do this nasty thing for src/ip/Intercept.cc */
+#if BUILDING_SQUID_IP_INTERCEPT_CC
+#define minor_t solaris_minor_t_fubar
 #endif
 #endif
 
@@ -77,12 +96,19 @@
 /* components as found to be needed                  */
 /*****************************************************/
 
-#include "compat/compat_shared.h"
-#include "compat/stdvarargs.h"
 #include "compat/assert.h"
+#include "compat/compat_shared.h"
+#include "compat/getaddrinfo.h"
+#include "compat/getnameinfo.h"
+#include "compat/inet_ntop.h"
+#include "compat/inet_pton.h"
+#include "compat/stdvarargs.h"
 
 /* cstdio has a bunch of problems with 64-bit definitions */
 #include "compat/stdio.h"
+
+/* POSIX statvfs() is still not universal */
+#include "compat/statvfs.h"
 
 /*****************************************************/
 /* component-specific portabilities                  */
@@ -93,9 +119,6 @@
 
 /* Valgrind API macros changed between two versions squid supports */
 #include "compat/valgrind.h"
-
-/* Endian functions are usualy handled by the OS but not always. */
-#include "squid_endian.h"
 
 /**
  * A Regular Expression library is bundled with Squid.
@@ -108,3 +131,4 @@
 #include "compat/cppunit.h"
 
 #endif /* _SQUID_COMPAT_H */
+

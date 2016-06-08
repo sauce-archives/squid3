@@ -1,9 +1,12 @@
 /*
- * DEBUG: section 89    EUI-64 Handling
- * AUTHOR: Amos Jeffries
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * Copyright (c) 2009, Amos Jeffries <squid3@treenet.co.nz>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 89    EUI-64 Handling */
 
 #include "squid.h"
 
@@ -28,7 +31,7 @@ Eui::Eui64::decode(const char *asc)
 }
 
 bool
-Eui::Eui64::encode(char *buf, const int len)
+Eui::Eui64::encode(char *buf, const int len) const
 {
     if (len < SZ_EUI64_BUF) return false;
 
@@ -90,3 +93,4 @@ Eui::Eui64::lookupNdp(const Ip::Address &c)
 }
 
 #endif /* USE_SQUID_EUI */
+

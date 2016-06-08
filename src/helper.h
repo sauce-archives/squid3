@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 84    Helper process maintenance
- * AUTHOR: Harvest Derived?
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 84    Helper process maintenance */
 
 #ifndef SQUID_HELPER_H
 #define SQUID_HELPER_H
@@ -38,24 +16,20 @@
 #include "cbdata.h"
 #include "comm/forward.h"
 #include "dlink.h"
+#include "helper/ChildConfig.h"
+#include "helper/forward.h"
 #include "ip/Address.h"
-#include "HelperChildConfig.h"
-#include "HelperReply.h"
-
-class helper_request;
-
-typedef void HLPCB(void *, const HelperReply &reply);
 
 class helper
 {
 public:
     inline helper(const char *name) :
-            cmdline(NULL),
-            id_name(name),
-            ipc_type(0),
-            last_queue_warn(0),
-            last_restart(0),
-            eom('\n') {
+        cmdline(NULL),
+        id_name(name),
+        ipc_type(0),
+        last_queue_warn(0),
+        last_restart(0),
+        eom('\n') {
         memset(&stats, 0, sizeof(stats));
     }
     ~helper();
@@ -65,7 +39,7 @@ public:
     dlink_list servers;
     dlink_list queue;
     const char *id_name;
-    HelperChildConfig childs;    ///< Configuration settings for number running.
+    Helper::ChildConfig childs;    ///< Configuration settings for number running.
     int ipc_type;
     Ip::Address addr;
     time_t last_queue_warn;
@@ -106,14 +80,18 @@ class HelperServerBase
 public:
     /** Closes pipes to the helper safely.
      * Handles the case where the read and write pipes are the same FD.
+     *
+     * \param name displayed for the helper being shutdown if logging an error
      */
-    void closePipesSafely();
+    void closePipesSafely(const char *name);
 
     /** Closes the reading pipe.
      * If the read and write sockets are the same the write pipe will
      * also be closed. Otherwise its left open for later handling.
+     *
+     * \param name displayed for the helper being shutdown if logging an error
      */
-    void closeWritePipeSafely();
+    void closeWritePipeSafely(const char *name);
 
 public:
     /// Helper program identifier; does not change when contents do,
@@ -135,7 +113,6 @@ public:
     dlink_node link;
 
     struct _helper_flags {
-        bool busy;
         bool writing;
         bool closing;
         bool shutdown;
@@ -160,13 +137,11 @@ public:
     MemBuf *writebuf;
 
     helper *parent;
-    helper_request **requests;
+    Helper::Request **requests;
 
 private:
     CBDATA_CLASS2(helper_server);
 };
-
-class helper_stateful_request;
 
 class helper_stateful_server : public HelperServerBase
 {
@@ -175,40 +150,13 @@ public:
     /* MemBuf writebuf; */
 
     statefulhelper *parent;
-    helper_stateful_request *request;
+    Helper::Request *request;
 
-    void *data;			/* State data used by the calling routines */
+    void *data;         /* State data used by the calling routines */
 
 private:
     CBDATA_CLASS2(helper_stateful_server);
 };
-
-class helper_request
-{
-
-public:
-    MEMPROXY_CLASS(helper_request);
-    char *buf;
-    HLPCB *callback;
-    void *data;
-
-    struct timeval dispatch_time;
-};
-
-MEMPROXY_CLASS_INLINE(helper_request);
-
-class helper_stateful_request
-{
-
-public:
-    MEMPROXY_CLASS(helper_stateful_request);
-    char *buf;
-    HLPCB *callback;
-    int placeholder;		/* if 1, this is a dummy request waiting for a stateful helper to become available */
-    void *data;
-};
-
-MEMPROXY_CLASS_INLINE(helper_stateful_request);
 
 /* helper.c */
 void helperOpenServers(helper * hlp);
@@ -223,3 +171,4 @@ void helperStatefulReleaseServer(helper_stateful_server * srv);
 void *helperStatefulServerGetData(helper_stateful_server * srv);
 
 #endif /* SQUID_HELPER_H */
+

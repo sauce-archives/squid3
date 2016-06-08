@@ -1,3 +1,10 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 include $(top_srcdir)/src/Common.am
 
 libexec_PROGRAMS = ntlm_fake_auth
@@ -11,7 +18,7 @@ ntlm_fake_auth_LDADD = \
 	$(CRYPTLIB) \
 	$(XTRA_LIBS)
 
-INCLUDES += -I$(top_srcdir)/lib
+AM_CPPFLAGS += -I$(top_srcdir)/lib
 
 ## Demo using perl.
 ## ntlm_fake_auth.pl: ntlm_fake_auth.pl.in

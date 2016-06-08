@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERRORE: non è possibile accedere alla URL richiesta</title>
 <style type="text/css"><!-- 
@@ -20,7 +21,7 @@ body
 <p>Mentre si cercava di accedere alla URL <a href="%U">%U</a> si è presentato il seguente errore:</p>
 
 <blockquote id="error">
-<p><b>Le funzioni di inoltro Wais non sono implementate.</b></p>
+<p><b>Le funzioni di inoltro Wais non sono implementate</b></p>
 </blockquote>
 
 <p>Non è stato definito nessun host per il relay del servizio WAIS! Prenditela con l'amministratore.</p>
@@ -31,7 +32,7 @@ body
 
 <hr>
 <div id="footer">
-<p>Generato da %h (%s) il %T.</p>
+<p>Generato da %h (%s) il %T</p>
 <!-- %c -->
 </div>
 </body></html>

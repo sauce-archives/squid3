@@ -1,7 +1,15 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include "ErrorDetail.h"
-#include "errorpage.h"
 #include "ErrorDetailManager.h"
+#include "errorpage.h"
 #include "mime_header.h"
 
 void Ssl::errorDetailInitialize()
@@ -230,12 +238,11 @@ Ssl::ErrorDetailFile::parse(const char *buffer, int len, bool eof)
                 entry.error_no = ssl_error;
                 entry.name = errorName;
                 String tmp = parser.getByName("detail");
-                httpHeaderParseQuotedString(tmp.termedBuf(), tmp.size(), &entry.detail);
+                const int detailsParseOk = httpHeaderParseQuotedString(tmp.termedBuf(), tmp.size(), &entry.detail);
                 tmp = parser.getByName("descr");
-                httpHeaderParseQuotedString(tmp.termedBuf(), tmp.size(), &entry.descr);
-                bool parseOK = entry.descr.defined() && entry.detail.defined();
+                const int descrParseOk = httpHeaderParseQuotedString(tmp.termedBuf(), tmp.size(), &entry.descr);
 
-                if (!parseOK) {
+                if (!detailsParseOk || !descrParseOk) {
                     debugs(83, DBG_IMPORTANT, HERE <<
                            "WARNING! missing important field for detail error: " <<  errorName);
                     return false;
@@ -254,3 +261,4 @@ Ssl::ErrorDetailFile::parse(const char *buffer, int len, bool eof)
     debugs(83, 9, HERE << " Remain size: " << buf.contentSize() << " Content: " << buf.content());
     return true;
 }
+

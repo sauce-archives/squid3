@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ACL_INNER_NODE_H
 #define SQUID_ACL_INNER_NODE_H
 
@@ -24,7 +32,7 @@ public:
     /* ACL API */
     virtual void prepareForUse();
     virtual bool empty() const;
-    virtual wordlist *dump() const;
+    virtual SBufList dump() const;
 
     /// parses one "acl name type acl1 acl2..." line, appending to nodes
     void lineParse();
@@ -47,3 +55,4 @@ protected:
 } // namespace Acl
 
 #endif /* SQUID_ACL_INNER_NODE_H */
+

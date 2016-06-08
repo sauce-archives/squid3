@@ -1,47 +1,24 @@
-
 /*
- * DEBUG: section 76    Internal Squid Object handling
- * AUTHOR: Duane, Alex, Henrik
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 76    Internal Squid Object handling */
 
 #include "squid.h"
 #include "CacheManager.h"
 #include "comm/Connection.h"
 #include "errorpage.h"
-#include "icmp/net_db.h"
-#include "Store.h"
-#include "HttpRequest.h"
 #include "HttpReply.h"
+#include "HttpRequest.h"
+#include "icmp/net_db.h"
 #include "MemBuf.h"
 #include "SquidConfig.h"
 #include "SquidTime.h"
+#include "Store.h"
 #include "tools.h"
 #include "URL.h"
 #include "wordlist.h"
@@ -73,6 +50,7 @@ internalStart(const Comm::ConnectionPointer &clientConn, HttpRequest * request, 
         entry->append(msgbuf, strlen(msgbuf));
         entry->complete();
     } else if (0 == strncmp(upath, "/squid-internal-mgr/", 20)) {
+        debugs(17, 2, "calling CacheManager due to URL-path /squid-internal-mgr/");
         CacheManager::GetInstance()->Start(clientConn, request, entry);
     } else {
         debugObj(76, 1, "internalStart: unknown request:\n",
@@ -182,3 +160,4 @@ internalHostnameIs(const char *arg)
 
     return 0;
 }
+

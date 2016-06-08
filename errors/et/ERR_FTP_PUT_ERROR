@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>VIGA: FTP PUT eba&otilde;nnestus</title>
 <style type="text/css"><!-- 
@@ -21,15 +22,15 @@ body
 
 <p>Squid saatis j&auml;rgneva FTP k&auml;su:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%f</pre>
 </blockquote>
 
-<p></p>
+<p>The server responded with:</p>
 <blockquote id="sysmsg">
-<pre></pre>
+<pre>%F</pre>
 </blockquote>
 
-<p></p>
+<p>This means that the FTP server may not have permission or space to store the file. Check the path, permissions, diskspace and try again.</p>
 
 <p>Teie teenusepakkuja aadress on <a href="mailto:%w%W">%w</a>.</p>
 <br>
@@ -37,7 +38,7 @@ body
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Generated %T by %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

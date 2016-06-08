@@ -1,4 +1,12 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * -----------------------------------------------------------------------------
  *
  * Author: Markus Moeller (markus_moeller at compuserve.com)
@@ -26,20 +34,16 @@
  *
  * -----------------------------------------------------------------------------
  */
-/*
- * Hosted at http://sourceforge.net/projects/squidkerbauth
- */
+
 #include "squid.h"
 #include "helpers/defines.h"
-#include "util.h"
 #include "rfc1738.h"
+#include "util.h"
 
-#ifdef HAVE_LDAP
+#if HAVE_LDAP
 
 #include "support.h"
-#ifdef HAVE_CTYPE_H
-#include <ctype.h>
-#endif
+#include <cctype>
 
 void
 init_args(struct main_args *margs)
@@ -167,7 +171,6 @@ main(int argc, char *const argv[])
     char *user, *domain, *group;
     char *up=NULL, *dp=NULL, *np=NULL;
     char *nuser, *nuser8 = NULL, *netbios;
-    char *c;
     int opt;
     struct main_args margs;
 
@@ -298,6 +301,7 @@ main(int argc, char *const argv[])
         exit(1);
     }
     while (1) {
+        char *c;
         if (fgets(buf, sizeof(buf) - 1, stdin) == NULL) {
             if (ferror(stdin)) {
                 debug((char *) "%s| %s: FATAL: fgets() failed! dying..... errno=%d (%s)\n", LogTime(), PROGRAM, ferror(stdin),
@@ -305,7 +309,7 @@ main(int argc, char *const argv[])
 
                 SEND_ERR("");
                 clean_args(&margs);
-                exit(1);	/* BIIG buffer */
+                exit(1);    /* BIIG buffer */
             }
             SEND_ERR("");
             clean_args(&margs);
@@ -420,8 +424,7 @@ strup(char *s)
 }
 
 #else
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdlib>
 int
 main(int argc, char *const argv[])
 {
@@ -436,3 +439,4 @@ main(int argc, char *const argv[])
     }
 }
 #endif
+

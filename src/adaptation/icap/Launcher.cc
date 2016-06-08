@@ -1,25 +1,31 @@
 /*
- * DEBUG: section 93    ICAP (RFC 3507) Client
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 93    ICAP (RFC 3507) Client */
 
 #include "squid.h"
 #include "acl/FilledChecklist.h"
 #include "adaptation/Answer.h"
-#include "adaptation/icap/Launcher.h"
-#include "adaptation/icap/Xaction.h"
-#include "adaptation/icap/ServiceRep.h"
 #include "adaptation/icap/Config.h"
+#include "adaptation/icap/Launcher.h"
+#include "adaptation/icap/ServiceRep.h"
+#include "adaptation/icap/Xaction.h"
 #include "base/TextException.h"
 #include "globals.h"
 #include "HttpMsg.h"
-#include "HttpRequest.h"
 #include "HttpReply.h"
+#include "HttpRequest.h"
 
 Adaptation::Icap::Launcher::Launcher(const char *aTypeName,
                                      Adaptation::ServicePointer &aService):
-        AsyncJob(aTypeName),
-        Adaptation::Initiate(aTypeName),
-        theService(aService), theXaction(0), theLaunches(0)
+    AsyncJob(aTypeName),
+    Adaptation::Initiate(aTypeName),
+    theService(aService), theXaction(0), theLaunches(0)
 {
 }
 
@@ -150,10 +156,10 @@ bool Adaptation::Icap::Launcher::canRepeat(Adaptation::Icap::XactAbortInfo &info
 
 Adaptation::Icap::XactAbortInfo::XactAbortInfo(HttpRequest *anIcapRequest,
         HttpReply *anIcapReply, bool beRetriable, bool beRepeatable):
-        icapRequest(anIcapRequest),
-        icapReply(anIcapReply),
-        isRetriable(beRetriable),
-        isRepeatable(beRepeatable)
+    icapRequest(anIcapRequest),
+    icapReply(anIcapReply),
+    isRetriable(beRetriable),
+    isRepeatable(beRepeatable)
 {
     if (icapRequest)
         HTTPMSGLOCK(icapRequest);
@@ -162,10 +168,10 @@ Adaptation::Icap::XactAbortInfo::XactAbortInfo(HttpRequest *anIcapRequest,
 }
 
 Adaptation::Icap::XactAbortInfo::XactAbortInfo(const Adaptation::Icap::XactAbortInfo &i):
-        icapRequest(i.icapRequest),
-        icapReply(i.icapReply),
-        isRetriable(i.isRetriable),
-        isRepeatable(i.isRepeatable)
+    icapRequest(i.icapRequest),
+    icapReply(i.icapReply),
+    isRetriable(i.isRetriable),
+    isRepeatable(i.isRepeatable)
 {
     if (icapRequest)
         HTTPMSGLOCK(icapRequest);
@@ -178,3 +184,4 @@ Adaptation::Icap::XactAbortInfo::~XactAbortInfo()
     HTTPMSGUNLOCK(icapRequest);
     HTTPMSGUNLOCK(icapReply);
 }
+

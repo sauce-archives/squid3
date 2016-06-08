@@ -1,12 +1,20 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID__SRC_CLIENTINFO_H
 #define SQUID__SRC_CLIENTINFO_H
 
-#include "ip/Address.h"
-#include "hash.h"
-#include "LogTags.h"
-#include "enums.h"
-#include "typedefs.h"
 #include "cbdata.h"
+#include "enums.h"
+#include "hash.h"
+#include "ip/Address.h"
+#include "LogTags.h"
+#include "typedefs.h"
 #include <deque>
 
 #if USE_DELAY_POOLS
@@ -106,3 +114,4 @@ private:
 #endif /* USE_DELAY_POOLS */
 
 #endif
+

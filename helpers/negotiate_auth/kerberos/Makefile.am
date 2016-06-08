@@ -1,11 +1,18 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 include $(top_srcdir)/src/Common.am
 
-EXTRA_DIST = README COPYING required.m4 negotiate_kerberos_auth.8
+EXTRA_DIST = README required.m4 negotiate_kerberos_auth.8
 SUBDIRS = 
 
 libexec_PROGRAMS = negotiate_kerberos_auth negotiate_kerberos_auth_test
 
-AM_CPPFLAGS = $(INCLUDES) -I$(srcdir)
+AM_CPPFLAGS += -I$(srcdir)
 
 negotiate_kerberos_auth_SOURCES = negotiate_kerberos_auth.cc negotiate_kerberos_pac.cc negotiate_kerberos.h
 negotiate_kerberos_auth_LDFLAGS = 

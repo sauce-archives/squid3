@@ -1,9 +1,16 @@
 /*
- * DEBUG: section 73    HTTP Request
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 73    HTTP Request */
 
 #include "squid.h"
 #include "HttpRequestMethod.h"
+#include "SquidConfig.h"
 #include "wordlist.h"
 
 static Http::MethodType &
@@ -19,18 +26,9 @@ operator++ (Http::MethodType &aMethod)
  * or from a range of chars, * such as "GET" from "GETFOOBARBAZ"
  * (pass in pointer to G and pointer to F.)
  */
-HttpRequestMethod::HttpRequestMethod(char const *begin, char const *end) : theMethod (Http::METHOD_NONE)
+HttpRequestMethod::HttpRequestMethod(char const *begin, char const *end) : theMethod(Http::METHOD_NONE)
 {
     if (begin == NULL)
-        return;
-
-    /*
-     * This check for '%' makes sure that we don't
-     * match one of the extension method placeholders,
-     * which have the form %EXT[0-9][0-9]
-     */
-
-    if (*begin == '%')
         return;
 
     /*
@@ -41,32 +39,40 @@ HttpRequestMethod::HttpRequestMethod(char const *begin, char const *end) : theMe
     if (NULL == end)
         end = begin + strcspn(begin, w_space);
 
-    if (end == begin) {
-        theMethod = Http::METHOD_NONE;
+    if (end == begin)
         return;
-    }
 
+    // TODO: Optimize this linear search.
     for (++theMethod; theMethod < Http::METHOD_ENUM_END; ++theMethod) {
-        if (0 == strncasecmp(begin, Http::MethodType_str[theMethod], end-begin)) {
-            return;
+        // RFC 2616 section 5.1.1 - Method names are case-sensitive
+        // NP: this is not a HTTP_VIOLATIONS case since there is no MUST/SHOULD involved.
+        if (0 == image().caseCmp(begin, end-begin)) {
+
+            // relaxed parser allows mixed-case and corrects them on output
+            if (Config.onoff.relaxed_header_parser)
+                return;
+
+            if (0 == image().cmp(begin, end-begin))
+                return;
         }
     }
 
     // if method not found and method string is not null then it is other method
     theMethod = Http::METHOD_OTHER;
-    theImage.limitInit(begin,end-begin);
+    theImage.assign(begin, end-begin);
 }
 
-char const*
+const SBuf &
 HttpRequestMethod::image() const
 {
+    static const SBuf methodOther("METHOD_OTHER");
     if (Http::METHOD_OTHER != theMethod) {
-        return Http::MethodType_str[theMethod];
+        return Http::MethodType_sb[theMethod];
     } else {
-        if (theImage.size()>0) {
-            return theImage.termedBuf();
+        if (!theImage.isEmpty()) {
+            return theImage;
         } else {
-            return "METHOD_OTHER";
+            return methodOther;
         }
     }
 }
@@ -82,29 +88,32 @@ HttpRequestMethod::isHttpSafe() const
     // checking and adding. If only to say it is known to define none.
 
     switch (theMethod) {
-        // RFC 2068 - none
+    // RFC 2068 - none
 
-        // RFC 2616 section 9.1.1
+    // RFC 2616 section 9.1.1
     case Http::METHOD_GET:
     case Http::METHOD_HEAD:
     case Http::METHOD_OPTIONS:
 
-        // RFC 3253 section 3.6
+    // RFC 3253 section 3.6
     case Http::METHOD_REPORT:
 
-        // RFC 3648 - none
-        // RFC 3744 - none
-        // RFC 4437 - none
-        // RFC 4791 - none
+    // RFC 3648 - none
+    // RFC 3744 - none
+    // RFC 4437 - none
+    // RFC 4791 - none
 
-        // RFC 4918 section 9.1
+    // RFC 4918 section 9.1
     case Http::METHOD_PROPFIND:
 
-        // RFC 5323 section 2
+    // RFC 5323 section 2
     case Http::METHOD_SEARCH:
 
-        // RFC 5789 - none
-        // RFC 5842 - none
+    // RFC 5789 - none
+    // RFC 5842 - none
+
+    // RFC 7540 section 11.6
+    case Http::METHOD_PRI:
 
         return true;
 
@@ -124,9 +133,9 @@ HttpRequestMethod::isIdempotent() const
     // checking and adding. If only to say it is known to define none.
 
     switch (theMethod) {
-        // RFC 2068 - TODO check LINK/UNLINK definition
+    // RFC 2068 - TODO check LINK/UNLINK definition
 
-        // RFC 2616 section 9.1.2
+    // RFC 2616 section 9.1.2
     case Http::METHOD_GET:
     case Http::METHOD_HEAD:
     case Http::METHOD_PUT:
@@ -134,13 +143,13 @@ HttpRequestMethod::isIdempotent() const
     case Http::METHOD_OPTIONS:
     case Http::METHOD_TRACE:
 
-        // RFC 3253 - TODO check
-        // RFC 3648 - TODO check
-        // RFC 3744 - TODO check
-        // RFC 4437 - TODO check
-        // RFC 4791 - TODO check
+    // RFC 3253 - TODO check
+    // RFC 3648 - TODO check
+    // RFC 3744 - TODO check
+    // RFC 4437 - TODO check
+    // RFC 4791 - TODO check
 
-        // RFC 4918 section 9
+    // RFC 4918 section 9
     case Http::METHOD_PROPFIND:
     case Http::METHOD_PROPPATCH:
     case Http::METHOD_MKCOL:
@@ -148,9 +157,12 @@ HttpRequestMethod::isIdempotent() const
     case Http::METHOD_MOVE:
     case Http::METHOD_UNLOCK:
 
-        // RFC 5323 - TODO check
-        // RFC 5789 - TODO check
-        // RFC 5842 - TODO check
+    // RFC 5323 - TODO check
+    // RFC 5789 - TODO check
+    // RFC 5842 - TODO check
+
+    // RFC 7540 section 11.6
+    case Http::METHOD_PRI:
 
         return true;
 
@@ -165,7 +177,7 @@ HttpRequestMethod::respMaybeCacheable() const
     // Only a few methods are defined as cacheable.
     // All other methods from the below RFC are "MUST NOT cache"
     switch (theMethod) {
-        // RFC 2616 section 9
+    // RFC 2616 section 9
     case Http::METHOD_GET:
     case Http::METHOD_HEAD:
         return true;
@@ -206,9 +218,9 @@ HttpRequestMethod::respMaybeCacheable() const
         return ??;
 #endif
 
-        // Special Squid method tokens are not cacheable.
-        // RFC 2616 defines all unregistered or unspecified methods as non-cacheable
-        // until such time as an RFC defines them cacheable.
+    // Special Squid method tokens are not cacheable.
+    // RFC 2616 defines all unregistered or unspecified methods as non-cacheable
+    // until such time as an RFC defines them cacheable.
     default:
         return false;
     }
@@ -218,22 +230,22 @@ bool
 HttpRequestMethod::shouldInvalidate() const
 {
     switch (theMethod) {
-        /* RFC 2616 section 13.10 - "MUST invalidate" */
+    /* RFC 2616 section 13.10 - "MUST invalidate" */
     case Http::METHOD_POST:
     case Http::METHOD_PUT:
     case Http::METHOD_DELETE:
         return true;
 
-        /* Squid extension to force invalidation */
+    /* Squid extension to force invalidation */
     case Http::METHOD_PURGE:
         return true;
 
-        /*
-         * RFC 2616 sayeth, in section 13.10, final paragraph:
-         * A cache that passes through requests for methods it does not
-         * understand SHOULD invalidate any entities referred to by the
-         * Request-URI.
-         */
+    /*
+     * RFC 2616 sayeth, in section 13.10, final paragraph:
+     * A cache that passes through requests for methods it does not
+     * understand SHOULD invalidate any entities referred to by the
+     * Request-URI.
+     */
     case Http::METHOD_OTHER:
         return true;
 
@@ -250,7 +262,7 @@ HttpRequestMethod::purgesOthers() const
         return true;
 
     switch (theMethod) {
-        /* common sense suggests purging is not required? */
+    /* common sense suggests purging is not required? */
     case Http::METHOD_GET:     // XXX: but we do purge HEAD on successful GET
     case Http::METHOD_HEAD:
     case Http::METHOD_NONE:
@@ -268,3 +280,4 @@ HttpRequestMethod::purgesOthers() const
         return true;
     }
 }
+

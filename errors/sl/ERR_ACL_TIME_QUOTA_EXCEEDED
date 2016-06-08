@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>NAPAKA: Zahtevanega naslova URL ni bilo mogoče naložiti.</title>
 <style type="text/css"><!-- 
@@ -20,10 +21,10 @@ body
 <p>Prišlo je do napake med poskusom nalaganja naslova URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Time Quota Exceeded.</b></p>
 </blockquote>
 
-<p></p>
+<p>This proxy limits your time online with a quota. Your time budget is now empty but will be refilled when the configured time period starts again.</p>
 <p>Te omejitve je določil internetni ponudnik, ki oskrbuje ta predpomnilnik. Obrnite se neposredno nanj, če menite, da gre za napako.</p>
 
 <p>Skrbnik vašega predpomnilnika je <a href="mailto:%w%W">%w</a>.</p>

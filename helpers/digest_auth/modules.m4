@@ -1,3 +1,10 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 # This file is supposed to run all the tests required to identify which
 # configured modules are able to be built in this environment
 
@@ -12,8 +19,10 @@ if test "x$enable_auth_digest" != "xno" -a "x$enable_auth" = "xno" ; then
     AC_MSG_ERROR([Digest auth requested but auth disabled])
 fi
 #define list of modules to build
+auto_auth_digest_modules=no
 if test "x$enable_auth_digest" = "xyes" ; then
     SQUID_LOOK_FOR_MODULES([$srcdir/helpers/digest_auth],[enable_auth_digest])
+  auto_auth_digest_modules=yes
 fi
 #handle the "none" special case
 if test "x$enable_auth_digest" = "xnone" ; then
@@ -46,7 +55,11 @@ if test "x$enable_auth_digest" != "xno" ; then
 
       if test -d "$srcdir/helpers/digest_auth/$helper"; then
         if test "$BUILD_HELPER" != "$helper"; then
-          AC_MSG_NOTICE([Digest auth helper $helper ... found but cannot be built])
+          if test "x$auto_auth_digest_modules" = "xyes"; then
+            AC_MSG_NOTICE([Digest auth helper $helper ... found but cannot be built])
+          else
+            AC_MSG_ERROR([Digest auth helper $helper ... found but cannot be built])
+          fi
         else
           DIGEST_AUTH_HELPERS="$DIGEST_AUTH_HELPERS $BUILD_HELPER"
         fi

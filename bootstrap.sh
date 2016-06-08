@@ -1,4 +1,12 @@
 #!/bin/sh
+#
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+#
 # Used to setup the configure.ac, autoheader and Makefile.in's if configure
 # has not been generated. This script is only needed for developers when
 # configure has not been run, or if a Makefile.am in a non-configured directory
@@ -77,20 +85,6 @@ bootstrap_libtoolize() {
     ltdl="--ltdl"
 
     bootstrap $tool $ltdl --force --copy --automake
-
-    # customize generated libltdl, if any
-    if test -d libltdl
-    then
-        src=libltdl
-
-        # do not bundle with the huge standard license text
-        rm -f $src/COPYING.LIB
-        makefile=$src/Makefile.in
-        sed 's/COPYING.LIB/ /g' $makefile > $makefile.new;
-        chmod u+w $makefile
-        mv $makefile.new $makefile
-        chmod u-w $makefile
-    fi
 }
 
 # On MAC OS X, GNU libtool is named 'glibtool':
@@ -156,7 +150,9 @@ do
 done
 
 # Make a copy of SPONSORS we can package
-sed -e 's/@Squid-[0-9\.]*://' <SPONSORS.list > SPONSORS || (rm -f SPONSORS && exit 1)
+if test -f SPONSORS.list; then
+  sed -e 's/@Squid-[0-9\.]*://' <SPONSORS.list > SPONSORS || (rm -f SPONSORS && exit 1)
+fi
 
 # Fixup autoconf recursion using --silent/--quiet option
 # autoconf should inherit this option whe recursing into subdirectories

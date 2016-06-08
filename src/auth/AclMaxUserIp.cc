@@ -1,37 +1,46 @@
 /*
- * DEBUG: section 28    Access Control
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 28    Access Control */
 
 #include "squid.h"
 #include "acl/FilledChecklist.h"
 #include "auth/Acl.h"
 #include "auth/AclMaxUserIp.h"
 #include "auth/UserRequest.h"
-#include "Debug.h"
-#include "wordlist.h"
 #include "ConfigParser.h"
+#include "Debug.h"
 #include "Parsing.h"
+#include "wordlist.h"
 
-ACLFlag
-ACLMaxUserIP::SupportedFlags[] = {ACL_F_STRICT, ACL_F_END};
+ACLFlag ACLMaxUserIP::SupportedFlags[] = {ACL_F_STRICT, ACL_F_END};
 
-ACL *
-ACLMaxUserIP::clone() const
-{
-    return new ACLMaxUserIP(*this);
-}
-
-ACLMaxUserIP::ACLMaxUserIP (char const *theClass) : ACL(SupportedFlags), class_ (theClass), maximum(0)
+ACLMaxUserIP::ACLMaxUserIP(char const *theClass) :
+    ACL(SupportedFlags),
+    class_(theClass),
+    maximum(0)
 {}
 
-ACLMaxUserIP::ACLMaxUserIP (ACLMaxUserIP const & old) : class_ (old.class_), maximum (old.maximum)
+ACLMaxUserIP::ACLMaxUserIP(ACLMaxUserIP const &old) :
+    class_(old.class_),
+    maximum(old.maximum)
 {
     flags = old.flags;
 }
 
 ACLMaxUserIP::~ACLMaxUserIP()
 {}
+
+ACL *
+ACLMaxUserIP::clone() const
+{
+    return new ACLMaxUserIP(*this);
+}
 
 char const *
 ACLMaxUserIP::typeString() const
@@ -40,13 +49,13 @@ ACLMaxUserIP::typeString() const
 }
 
 bool
-ACLMaxUserIP::empty () const
+ACLMaxUserIP::empty() const
 {
     return false;
 }
 
 bool
-ACLMaxUserIP::valid () const
+ACLMaxUserIP::valid() const
 {
     return maximum > 0;
 }
@@ -142,19 +151,15 @@ ACLMaxUserIP::match(ACLChecklist *cl)
     }
 }
 
-wordlist *
+SBufList
 ACLMaxUserIP::dump() const
 {
+    SBufList sl;
     if (!maximum)
-        return NULL;
-
-    wordlist *W = NULL;
-
-    char buf[128];
-
-    snprintf(buf, sizeof(buf), "%lu", (unsigned long int) maximum);
-
-    wordlistAdd(&W, buf);
-
-    return W;
+        return sl;
+    SBuf s;
+    s.Printf("%d", maximum);
+    sl.push_back(s);
+    return sl;
 }
+

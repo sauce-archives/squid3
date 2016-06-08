@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Die aangevraagde URL kon nie verkry word nie</title>
 <style type="text/css"><!-- 
@@ -20,10 +21,10 @@ body
 <p>Die volgende fout is teëgekom tydens verkryging van die URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>No Wais Relay</b></p>
 </blockquote>
 
-<p></p>
+<p>There is no WAIS Relay host defined for this Cache! Yell at the administrator.</p>
 
 <p>Die kasbediener se administrateur is <a href="mailto:%w%W">%w</a>.</p>
 <br>

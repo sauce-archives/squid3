@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 80    WCCP Support
- * AUTHOR: Steven Wilton
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 80    WCCP Support */
 
 #include "squid.h"
 
@@ -38,6 +16,7 @@
 #include "comm.h"
 #include "comm/Connection.h"
 #include "comm/Loops.h"
+#include "ConfigParser.h"
 #include "event.h"
 #include "ip/Address.h"
 #include "md5.h"
@@ -62,15 +41,15 @@ static EVH wccp2AssignBuckets;
 
 /* KDW WCCP V2 */
 
-#define WCCP2_HASH_ASSIGNMENT		0x00
-#define WCCP2_MASK_ASSIGNMENT		0x01
+#define WCCP2_HASH_ASSIGNMENT       0x00
+#define WCCP2_MASK_ASSIGNMENT       0x01
 
-#define	WCCP2_NONE_SECURITY_LEN	0
-#define	WCCP2_MD5_SECURITY_LEN	SQUID_MD5_DIGEST_LENGTH // 16
+#define WCCP2_NONE_SECURITY_LEN 0
+#define WCCP2_MD5_SECURITY_LEN  SQUID_MD5_DIGEST_LENGTH // 16
 
 /* Useful defines */
-#define	WCCP2_NUMPORTS	8
-#define	WCCP2_PASSWORD_LEN	8
+#define WCCP2_NUMPORTS  8
+#define WCCP2_PASSWORD_LEN  8
 
 /* WCCPv2 Pakcet format structures */
 /* Defined in draft-wilson-wccp-v2-12-oct-2001.txt */
@@ -84,18 +63,18 @@ struct wccp2_item_header_t {
 };
 
 /* item type values */
-#define WCCP2_SECURITY_INFO		0
-#define WCCP2_SERVICE_INFO		1
-#define WCCP2_ROUTER_ID_INFO		2
-#define WCCP2_WC_ID_INFO		3
-#define WCCP2_RTR_VIEW_INFO		4
-#define WCCP2_WC_VIEW_INFO		5
-#define WCCP2_REDIRECT_ASSIGNMENT	6
-#define WCCP2_QUERY_INFO		7
-#define WCCP2_CAPABILITY_INFO		8
-#define WCCP2_ALT_ASSIGNMENT		13
-#define WCCP2_ASSIGN_MAP		14
-#define WCCP2_COMMAND_EXTENSION		15
+#define WCCP2_SECURITY_INFO     0
+#define WCCP2_SERVICE_INFO      1
+#define WCCP2_ROUTER_ID_INFO        2
+#define WCCP2_WC_ID_INFO        3
+#define WCCP2_RTR_VIEW_INFO     4
+#define WCCP2_WC_VIEW_INFO      5
+#define WCCP2_REDIRECT_ASSIGNMENT   6
+#define WCCP2_QUERY_INFO        7
+#define WCCP2_CAPABILITY_INFO       8
+#define WCCP2_ALT_ASSIGNMENT        13
+#define WCCP2_ASSIGN_MAP        14
+#define WCCP2_COMMAND_EXTENSION     15
 
 /** \interface WCCPv2_Protocol
  * Sect 5.5  WCCP Message Header
@@ -127,8 +106,8 @@ struct wccp2_security_none_t {
 };
 
 /* security options */
-#define WCCP2_NO_SECURITY		0
-#define WCCP2_MD5_SECURITY		1
+#define WCCP2_NO_SECURITY       0
+#define WCCP2_MD5_SECURITY      1
 
 /** \interface WCCPv2_Protocol
  * Sect 5.6.1 Security Info Component
@@ -166,23 +145,23 @@ struct wccp2_service_info_t {
     uint16_t port7;
 };
 /* services */
-#define WCCP2_SERVICE_STANDARD		0
-#define WCCP2_SERVICE_DYNAMIC		1
+#define WCCP2_SERVICE_STANDARD      0
+#define WCCP2_SERVICE_DYNAMIC       1
 
 /* service IDs */
-#define WCCP2_SERVICE_ID_HTTP		0x00
+#define WCCP2_SERVICE_ID_HTTP       0x00
 
 /* service flags */
-#define WCCP2_SERVICE_SRC_IP_HASH	0x1
-#define WCCP2_SERVICE_DST_IP_HASH	0x2
-#define WCCP2_SERVICE_SRC_PORT_HASH	0x4
-#define WCCP2_SERVICE_DST_PORT_HASH	0x8
-#define WCCP2_SERVICE_PORTS_DEFINED	0x10
-#define WCCP2_SERVICE_PORTS_SOURCE	0x20
-#define WCCP2_SERVICE_SRC_IP_ALT_HASH	0x100
-#define WCCP2_SERVICE_DST_IP_ALT_HASH	0x200
-#define WCCP2_SERVICE_SRC_PORT_ALT_HASH	0x400
-#define WCCP2_SERVICE_DST_PORT_ALT_HASH	0x800
+#define WCCP2_SERVICE_SRC_IP_HASH   0x1
+#define WCCP2_SERVICE_DST_IP_HASH   0x2
+#define WCCP2_SERVICE_SRC_PORT_HASH 0x4
+#define WCCP2_SERVICE_DST_PORT_HASH 0x8
+#define WCCP2_SERVICE_PORTS_DEFINED 0x10
+#define WCCP2_SERVICE_PORTS_SOURCE  0x20
+#define WCCP2_SERVICE_SRC_IP_ALT_HASH   0x100
+#define WCCP2_SERVICE_DST_IP_ALT_HASH   0x200
+#define WCCP2_SERVICE_SRC_PORT_ALT_HASH 0x400
+#define WCCP2_SERVICE_DST_PORT_ALT_HASH 0x800
 
 /* TODO the following structures need to be re-defined for correct full operation.
  wccp2_cache_identity_element needs to be merged as a sub-struct of
@@ -321,24 +300,24 @@ struct wccp2_capability_element_t {
 static struct wccp2_capability_element_t wccp2_capability_element;
 
 /* capability types */
-#define WCCP2_CAPABILITY_FORWARDING_METHOD	0x01
-#define WCCP2_CAPABILITY_ASSIGNMENT_METHOD	0x02
-#define WCCP2_CAPABILITY_RETURN_METHOD		0x03
+#define WCCP2_CAPABILITY_FORWARDING_METHOD  0x01
+#define WCCP2_CAPABILITY_ASSIGNMENT_METHOD  0x02
+#define WCCP2_CAPABILITY_RETURN_METHOD      0x03
 // 0x04 ?? - advertised by a 4507 (ios v15.1) Cisco switch
 // 0x05 ?? - advertised by a 4507 (ios v15.1) Cisco switch
 
 /* capability values */
-#define WCCP2_METHOD_GRE		0x00000001
-#define WCCP2_METHOD_L2			0x00000002
+#define WCCP2_METHOD_GRE        0x00000001
+#define WCCP2_METHOD_L2         0x00000002
 /* when type=WCCP2_CAPABILITY_FORWARDING_METHOD */
-#define WCCP2_FORWARDING_METHOD_GRE	WCCP2_METHOD_GRE
-#define WCCP2_FORWARDING_METHOD_L2	WCCP2_METHOD_L2
+#define WCCP2_FORWARDING_METHOD_GRE WCCP2_METHOD_GRE
+#define WCCP2_FORWARDING_METHOD_L2  WCCP2_METHOD_L2
 /* when type=WCCP2_CAPABILITY_ASSIGNMENT_METHOD */
-#define WCCP2_ASSIGNMENT_METHOD_HASH	0x00000001
-#define WCCP2_ASSIGNMENT_METHOD_MASK	0x00000002
+#define WCCP2_ASSIGNMENT_METHOD_HASH    0x00000001
+#define WCCP2_ASSIGNMENT_METHOD_MASK    0x00000002
 /* when type=WCCP2_CAPABILITY_RETURN_METHOD */
-#define WCCP2_PACKET_RETURN_METHOD_GRE	WCCP2_METHOD_GRE
-#define WCCP2_PACKET_RETURN_METHOD_L2	WCCP2_METHOD_L2
+#define WCCP2_PACKET_RETURN_METHOD_GRE  WCCP2_METHOD_GRE
+#define WCCP2_PACKET_RETURN_METHOD_L2   WCCP2_METHOD_L2
 
 /** \interface WCCPv2_Protocol
  * 5.7.8 Value Element
@@ -471,7 +450,7 @@ struct wccp2_service_list_t {
     size_t wccp_packet_size;
 
     struct wccp2_service_list_t *next;
-    char wccp_password[WCCP2_PASSWORD_LEN + 1];		/* hold the trailing C-string NUL */
+    char wccp_password[WCCP2_PASSWORD_LEN + 1];     /* hold the trailing C-string NUL */
     uint32_t wccp2_security_type;
 };
 
@@ -1071,13 +1050,18 @@ wccp2ConnectionClose(void)
         return;
     }
 
+    /* TODO A shutting-down cache should generate a removal query, informing the router
+     * (and therefore the caches in the group) that this cache is going
+     * away and no new traffic should be forwarded to it.
+     */
+
     if (theWccp2Connection > -1) {
         debugs(80, DBG_IMPORTANT, "FD " << theWccp2Connection << " Closing WCCPv2 socket");
         comm_close(theWccp2Connection);
         theWccp2Connection = -1;
     }
 
-    /* for each router on each service send a packet */
+    /* free all stored router state */
     service_list_ptr = wccp2_service_list_head;
 
     while (service_list_ptr != NULL) {
@@ -1262,7 +1246,7 @@ wccp2HandleUdp(int sock, void *not_used)
             router_capability_header = (struct wccp2_capability_info_header_t *) &wccp2_i_see_you.data[offset];
             break;
 
-            /* Nothing to do for the types below */
+        /* Nothing to do for the types below */
 
         case WCCP2_ASSIGN_MAP:
         case WCCP2_REDIRECT_ASSIGNMENT:
@@ -2014,7 +1998,7 @@ parse_wccp2_method(int *method)
     char *t;
 
     /* Snarf the method */
-    if ((t = strtok(NULL, w_space)) == NULL) {
+    if ((t = ConfigParser::NextToken()) == NULL) {
         debugs(80, DBG_CRITICAL, "wccp2_*_method: missing setting.");
         self_destruct();
     }
@@ -2061,7 +2045,7 @@ parse_wccp2_amethod(int *method)
     char *t;
 
     /* Snarf the method */
-    if ((t = strtok(NULL, w_space)) == NULL) {
+    if ((t = ConfigParser::NextToken()) == NULL) {
         debugs(80, DBG_CRITICAL, "wccp2_assignment_method: missing setting.");
         self_destruct();
     }
@@ -2117,7 +2101,7 @@ parse_wccp2_service(void *v)
     }
 
     /* Snarf the type */
-    if ((t = strtok(NULL, w_space)) == NULL) {
+    if ((t = ConfigParser::NextToken()) == NULL) {
         debugs(80, DBG_CRITICAL, "wccp2ParseServiceInfo: missing service info type (standard|dynamic)");
         self_destruct();
     }
@@ -2142,7 +2126,7 @@ parse_wccp2_service(void *v)
     memset(wccp_password, 0, sizeof(wccp_password));
     /* Handle password, if any */
 
-    if ((t = strtok(NULL, w_space)) != NULL) {
+    if ((t = ConfigParser::NextToken()) != NULL) {
         if (strncmp(t, "password=", 9) == 0) {
             security_type = WCCP2_MD5_SECURITY;
             strncpy(wccp_password, t + 9, WCCP2_PASSWORD_LEN);
@@ -2254,12 +2238,19 @@ parse_wccp2_service_ports(char *options, int portlist[])
 
     int i = 0;
     char *tmp = options;
+    static char copy[10];
 
     while (size_t len = strcspn(tmp, ",")) {
         if (i >= WCCP2_NUMPORTS) {
             fatalf("parse_wccp2_service_ports: too many ports (maximum: 8) in list '%s'\n", options);
         }
-        int p = xatoi(tmp);
+        if (len > 6) { // 6 because "65535,"
+            fatalf("parse_wccp2_service_ports: port value '%s' isn't valid (1..65535)\n", tmp);
+        }
+
+        memcpy(copy, tmp, len);
+        copy[len] = '\0';
+        int p = xatoi(copy);
 
         if (p < 1 || p > 65535) {
             fatalf("parse_wccp2_service_ports: port value '%s' isn't valid (1..65535)\n", tmp);
@@ -2280,7 +2271,7 @@ parse_wccp2_service_info(void *v)
     int service_id = 0;
     int flags = 0;
     int portlist[WCCP2_NUMPORTS];
-    int protocol = -1;		/* IPPROTO_TCP | IPPROTO_UDP */
+    int protocol = -1;      /* IPPROTO_TCP | IPPROTO_UDP */
 
     struct wccp2_service_list_t *srv;
     int priority = -1;
@@ -2308,7 +2299,7 @@ parse_wccp2_service_info(void *v)
     }
 
     /* Next: loop until we don't have any more tokens */
-    while ((t = strtok(NULL, w_space)) != NULL) {
+    while ((t = ConfigParser::NextToken()) != NULL) {
         if (strncmp(t, "flags=", 6) == 0) {
             /* XXX eww, string pointer math */
             flags = parse_wccp2_service_flags(t + 6);
@@ -2529,3 +2520,4 @@ free_wccp2_service_info(void *v)
 {}
 
 #endif /* USE_WCCPv2 */
+

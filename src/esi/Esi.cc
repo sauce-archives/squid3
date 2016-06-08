@@ -1,35 +1,12 @@
 /*
- * DEBUG: section 86    ESI processing
- * AUTHOR: Robert Collins
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- ;  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
- * Copyright (c) 2003, Robert Collins <robertc@squid-cache.org>
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 86    ESI processing */
 
 #include "squid.h"
 
@@ -38,8 +15,8 @@
  */
 #if (USE_SQUID_ESI == 1)
 
-#include "client_side_request.h"
 #include "client_side.h"
+#include "client_side_request.h"
 #include "clientStream.h"
 #include "comm/Connection.h"
 #include "errorpage.h"
@@ -334,8 +311,6 @@ ESIContext::fixupOutboundTail()
 esiKick_t
 ESIContext::kick ()
 {
-    assert (this);
-
     if (flags.kicked) {
         debugs(86, 5, "esiKick: Re-entered whilst in progress");
         // return ESI_KICK_INPROGRESS;
@@ -434,9 +409,9 @@ esiStreamRead (clientStreamNode *thisNode, ClientHttpRequest *http)
     switch (context->kick ()) {
 
     case ESIContext::ESI_KICK_FAILED:
-        /* this can not happen - processing can't fail until we have data,
-         * and when we come here we have sent data to the client
-         */
+    /* this can not happen - processing can't fail until we have data,
+     * and when we come here we have sent data to the client
+     */
 
     case ESIContext::ESI_KICK_SENT:
 
@@ -598,8 +573,8 @@ ESIContext::send ()
 
 #endif
 
-    if (!(rep || (outbound.getRaw() &&
-                  outbound->len && (outbound_offset <= outbound->len)))) {
+    if (!(rep != NULL || (outbound.getRaw() &&
+                          outbound->len && (outbound_offset <= outbound->len)))) {
         debugs(86, 5, "ESIContext::send: Nothing to send.");
         return 0;
     }
@@ -643,18 +618,18 @@ ESIContext::send ()
     flags.clientwantsdata = 0;
     debugs(86, 5, "ESIContext::send: this=" << this << " Client no longer wants data ");
     /* Deal with re-entrancy */
-    HttpReply *temprep = rep;
+    HttpReply::Pointer temprep = rep;
     rep = NULL; /* freed downstream */
 
-    if (temprep && varState)
-        varState->buildVary (temprep);
+    if (temprep != NULL && varState)
+        varState->buildVary(temprep.getRaw());
 
     {
         StoreIOBuffer tempBuffer;
         tempBuffer.length = len;
         tempBuffer.offset = pos - len;
         tempBuffer.data = next->readBuffer.data;
-        clientStreamCallback (thisNode, http, temprep, tempBuffer);
+        clientStreamCallback (thisNode, http, temprep.getRaw(), tempBuffer);
     }
 
     if (len == 0)
@@ -953,9 +928,9 @@ ESIContext::ParserState::top()
 }
 
 ESIContext::ParserState::ParserState() :
-        stackdepth(0),
-        parsing(0),
-        inited_(false)
+    stackdepth(0),
+    parsing(0),
+    inited_(false)
 {}
 
 bool
@@ -991,7 +966,7 @@ ESIContext::start(const char *el, const char **attr, size_t attrCount)
     ESIElement::Pointer element;
     int specifiedattcount = attrCount * 2;
     char *position;
-    assert (ellen < sizeof (localbuf)); /* prevent unexpected overruns. */
+    Must(ellen < sizeof(localbuf)); /* prevent unexpected overruns. */
 
     debugs(86, 5, "ESIContext::Start: element '" << el << "' with " << specifiedattcount << " tags");
 
@@ -1005,15 +980,17 @@ ESIContext::start(const char *el, const char **attr, size_t attrCount)
         /* Spit out elements we aren't interested in */
         localbuf[0] = '<';
         localbuf[1] = '\0';
-        assert (xstrncpy (&localbuf[1], el, sizeof(localbuf) - 2));
+        xstrncpy(&localbuf[1], el, sizeof(localbuf) - 2);
         position = localbuf + strlen (localbuf);
 
         for (i = 0; i < specifiedattcount && attr[i]; i += 2) {
+            Must(static_cast<size_t>(position - localbuf) < sizeof(localbuf) - 1);
             *position = ' ';
             ++position;
             /* TODO: handle thisNode gracefully */
-            assert (xstrncpy (position, attr[i], sizeof(localbuf) + (position - localbuf)));
+            xstrncpy(position, attr[i], sizeof(localbuf) - (position - localbuf));
             position += strlen (position);
+            Must(static_cast<size_t>(position - localbuf) < sizeof(localbuf) - 2);
             *position = '=';
             ++position;
             *position = '\"';
@@ -1022,18 +999,21 @@ ESIContext::start(const char *el, const char **attr, size_t attrCount)
             char ch;
             while ((ch = *chPtr++) != '\0') {
                 if (ch == '\"') {
-                    assert( xstrncpy(position, "&quot;", sizeof(localbuf) + (position-localbuf)) );
+                    Must(static_cast<size_t>(position - localbuf) < sizeof(localbuf) - 6);
+                    xstrncpy(position, "&quot;", sizeof(localbuf) - (position-localbuf));
                     position += 6;
                 } else {
+                    Must(static_cast<size_t>(position - localbuf) < sizeof(localbuf) - 1);
                     *position = ch;
                     ++position;
                 }
             }
-            position += strlen (position);
+            Must(static_cast<size_t>(position - localbuf) < sizeof(localbuf) - 1);
             *position = '\"';
             ++position;
         }
 
+        Must(static_cast<size_t>(position - localbuf) < sizeof(localbuf) - 2);
         *position = '>';
         ++position;
         *position = '\0';
@@ -1119,11 +1099,11 @@ ESIContext::end(const char *el)
     switch (ESIElement::IdentifyElement (el)) {
 
     case ESIElement::ESI_ELEMENT_NONE:
-        assert (ellen < sizeof (localbuf)); /* prevent unexpected overruns. */
+        Must(ellen < sizeof(localbuf) - 3); /* prevent unexpected overruns. */
         /* Add elements we aren't interested in */
         localbuf[0] = '<';
         localbuf[1] = '/';
-        assert (xstrncpy (&localbuf[2], el, sizeof(localbuf) - 3));
+        xstrncpy(&localbuf[2], el, sizeof(localbuf) - 3);
         position = localbuf + strlen (localbuf);
         *position = '>';
         ++position;
@@ -1279,7 +1259,7 @@ ESIContext::parse()
         ++parserState.stackdepth;
     }
 
-    if (rep && !parserState.inited())
+    if (rep != NULL && !parserState.inited())
         parserState.init(this);
 
     /* we have data */
@@ -1418,7 +1398,7 @@ ESIContext::freeResources ()
 {
     debugs(86, 5, HERE << "Freeing for this=" << this);
 
-    HTTPMSGUNLOCK(rep);
+    rep = NULL; // refcounted
 
     finishChildren ();
 
@@ -1597,7 +1577,7 @@ esiLiteral::process (int dovars)
 }
 
 esiLiteral::esiLiteral(esiLiteral const &old) : buffer (old.buffer->cloneList()),
-        varState (NULL)
+    varState (NULL)
 {
     flags.donevars = 0;
 }
@@ -1694,8 +1674,8 @@ esiTry::~esiTry()
 }
 
 esiTry::esiTry(esiTreeParentPtr aParent) :
-        parent(aParent),
-        exceptbuffer(NULL)
+    parent(aParent),
+    exceptbuffer(NULL)
 {
     memset(&flags, 0, sizeof(flags));
 }
@@ -1704,7 +1684,6 @@ void
 esiTry::render(ESISegment::Pointer output)
 {
     /* Try renders from it's children */
-    assert (this);
     assert (attempt.getRaw());
     assert (except.getRaw());
     debugs(86, 5, "esiTryRender: Rendering Try " << this);
@@ -1772,7 +1751,6 @@ esiProcessResult_t
 esiTry::process (int dovars)
 {
     esiProcessResult_t rv = ESI_PROCESS_PENDING_MAYFAIL;
-    assert (this);
 
     if (!attempt.getRaw()) {
         debugs(86, DBG_CRITICAL, "esiTryProcess: Try has no attempt element - ESI template is invalid (section 3.4)");
@@ -2319,10 +2297,10 @@ ElementList::size() const
 
 /* esiWhen */
 esiWhen::esiWhen(esiTreeParentPtr aParent, int attrcount, const char **attr,ESIVarState *aVar) :
-        esiSequence(aParent),
-        testValue(false),
-        unevaluatedExpression(NULL),
-        varState(NULL)
+    esiSequence(aParent),
+    testValue(false),
+    unevaluatedExpression(NULL),
+    varState(NULL)
 {
     char const *expression = NULL;
 
@@ -2378,10 +2356,10 @@ esiWhen::evaluate()
 }
 
 esiWhen::esiWhen(esiWhen const &old) :
-        esiSequence(old),
-        testValue(false),
-        unevaluatedExpression(NULL),
-        varState(NULL)
+    esiSequence(old),
+    testValue(false),
+    unevaluatedExpression(NULL),
+    varState(NULL)
 {
     if (old.unevaluatedExpression)
         unevaluatedExpression = xstrdup(old.unevaluatedExpression);
@@ -2435,14 +2413,12 @@ esiEnableProcessing (HttpReply *rep)
         HttpHdrScTarget *sctusable =
             rep->surrogate_control->getMergedTarget(Config.Accel.surrogate_id);
 
-        if (!sctusable || !sctusable->hasContent())
-            /* Nothing generic or targeted at us, or no
-             * content processing requested
-             */
-            return 0;
-
-        if (sctusable->content().pos("ESI/1.0") != NULL)
+        // found something targeted at us
+        if (sctusable &&
+                sctusable->hasContent() &&
+                sctusable->content().pos("ESI/1.0")) {
             rv = 1;
+        }
 
         delete sctusable;
     }
@@ -2451,3 +2427,4 @@ esiEnableProcessing (HttpReply *rep)
 }
 
 #endif /* USE_SQUID_ESI == 1 */
+

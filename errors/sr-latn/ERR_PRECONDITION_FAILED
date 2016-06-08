@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>GREŠKA: Tražena adresa (URL) ne može da se učita</title>
 <style type="text/css"><!-- 
@@ -20,12 +21,12 @@ body
 <p>Greška učitavanja podataka sa adrese (URL): <a href="%U">%U</a></p>
 
 <blockquote id="error">
-<p><b></b></p>
+<p><b>Precondition Failed.</b></p>
 </blockquote>
 
-<p></p>
+<p>This means:</p>
 <blockquote>
-    <p></p>
+    <p>At least one precondition specified by the HTTP client in the request header has failed.</p>
 </blockquote>
 
 <br>

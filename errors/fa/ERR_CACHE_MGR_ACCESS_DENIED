@@ -1,7 +1,8 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>خطا: اجازه دسترسی به مدیریت Cache وجود ندارد.</title>
+<title>خطا: رد شدن دسترسی برای مدیریت نهانگاه</title>
 <style type="text/css"><!-- 
  %l
 
@@ -17,15 +18,15 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>The following error was encountered while trying to retrieve the URL: <a href="%U">%U</a></p>
 
 <blockquote id="error">
 <p><b>دسترسی مدیریت نهانگاه رد شد.</b></p>
 </blockquote>
 
-<p></p>
+<p>Sorry, you are not currently allowed to request %U from this cache manager until you have authenticated yourself.</p>
 
-<p></p>
+<p>Please contact the <a href="mailto:%w%W">cache administrator</a> if you have difficulties authenticating yourself or, if you <em>are</em> the administrator, read Squid documentation on cache manager interface and check cache log for more detailed error messages.</p>
 
 <br>
 </div>

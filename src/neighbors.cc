@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 15    Neighbor Routines
- * AUTHOR: Harvest Derived
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 15    Neighbor Routines */
 
 #include "squid.h"
 #include "acl/FilledChecklist.h"
@@ -52,9 +30,11 @@
 #include "MemObject.h"
 #include "mgr/Registration.h"
 #include "multicast.h"
-#include "NeighborTypeDomainList.h"
 #include "neighbors.h"
+#include "NeighborTypeDomainList.h"
+#include "pconn.h"
 #include "PeerDigest.h"
+#include "PeerPoolMgr.h"
 #include "PeerSelectState.h"
 #include "RequestFlags.h"
 #include "SquidConfig.h"
@@ -181,7 +161,7 @@ peerAllowedToUse(const CachePeer * p, HttpRequest * request)
 
     // CONNECT requests are proxy requests. Not to be forwarded to origin servers.
     // Unless the destination port matches, in which case we MAY perform a 'DIRECT' to this CachePeer.
-    if (p->options.originserver && request->method == Http::METHOD_CONNECT && request->port != p->in_addr.port())
+    if (p->options.originserver && request->method == Http::METHOD_CONNECT && request->port != p->http_port)
         return false;
 
     if (p->peer_domain == NULL && p->access == NULL)
@@ -246,13 +226,46 @@ peerWouldBePinged(const CachePeer * p, HttpRequest * request)
     return 1;
 }
 
+bool
+peerCanOpenMore(const CachePeer *p)
+{
+    const int effectiveLimit = p->max_conn <= 0 ? Squid_MaxFD : p->max_conn;
+    const int remaining = effectiveLimit - p->stats.conn_open;
+    debugs(15, 7, remaining << '=' << effectiveLimit << '-' << p->stats.conn_open);
+    return remaining > 0;
+}
+
+bool
+peerHasConnAvailable(const CachePeer *p)
+{
+    // Standby connections can be used without opening new connections.
+    const int standbys = p->standby.pool ? p->standby.pool->count() : 0;
+
+    // XXX: Some idle pconns can be used without opening new connections.
+    // Complication: Idle pconns cannot be reused for some requests.
+    const int usableIdles = 0;
+
+    const int available = standbys + usableIdles;
+    debugs(15, 7, available << '=' << standbys << '+' << usableIdles);
+    return available > 0;
+}
+
+void
+peerConnClosed(CachePeer *p)
+{
+    --p->stats.conn_open;
+    if (p->standby.waitingForClose && peerCanOpenMore(p)) {
+        p->standby.waitingForClose = false;
+        PeerPoolMgr::Checkpoint(p->standby.mgr, "conn closed");
+    }
+}
+
 /* Return TRUE if it is okay to send an HTTP request to this CachePeer. */
 int
 peerHTTPOkay(const CachePeer * p, HttpRequest * request)
 {
-    if (p->max_conn)
-        if (p->stats.conn_open >= p->max_conn)
-            return 0;
+    if (!peerCanOpenMore(p) && !peerHasConnAvailable(p))
+        return 0;
 
     if (!peerAllowedToUse(p, request))
         return 0;
@@ -395,7 +408,7 @@ getWeightedRoundRobinParent(HttpRequest * request)
  * period. The larger the number of requests between cycled resets the
  * more balanced the operations.
  *
- \param data	unused.
+ \param data    unused.
  \todo Make the reset timing a selectable parameter in squid.conf
  */
 static void
@@ -446,6 +459,8 @@ peerAlive(CachePeer *p)
         debugs(15, DBG_IMPORTANT, "Detected REVIVED " << neighborTypeStr(p) << ": " << p->name);
         p->stats.logged_state = PEER_ALIVE;
         peerClearRR();
+        if (p->standby.mgr.valid())
+            PeerPoolMgr::Checkpoint(p->standby.mgr, "revived peer");
     }
 
     p->stats.last_reply = squid_curtime;
@@ -546,7 +561,7 @@ neighbors_init(void)
             if (0 != strcmp(thisPeer->host, me))
                 continue;
 
-            for (AnyP::PortCfg *s = Config.Sockaddr.http; s; s = s->next) {
+            for (AnyP::PortCfgPointer s = HttpPortList; s != NULL; s = s->next) {
                 if (thisPeer->http_port != s->s.port())
                     continue;
 
@@ -611,7 +626,7 @@ neighborsUdpPing(HttpRequest * request,
         debugs(15, 5, "neighborsUdpPing: Peer " << p->host);
 
         if (!peerWouldBePinged(p, request))
-            continue;		/* next CachePeer */
+            continue;       /* next CachePeer */
 
         ++peers_pinged;
 
@@ -720,7 +735,7 @@ neighborsUdpPing(HttpRequest * request,
             else
                 *timeout = 2 * sibling_timeout / sibling_exprep;
         } else
-            *timeout = 2000;	/* 2 seconds */
+            *timeout = 2000;    /* 2 seconds */
 
         if (Config.Timeout.icp_query_max)
             if (*timeout > Config.Timeout.icp_query_max)
@@ -822,7 +837,7 @@ neighborsDigestSelect(HttpRequest * request)
             best_p = p;
             best_rtt = p_rtt;
 
-            if (p_rtt)		/* informative choice (aka educated guess) */
+            if (p_rtt)      /* informative choice (aka educated guess) */
                 ++ichoice_count;
 
             debugs(15, 4, "neighborsDigestSelect: peer " << p->host << " leads with rtt " << best_rtt);
@@ -1025,7 +1040,7 @@ neighborsUdpAck(const cache_key * key, icp_common_t * header, const Ip::Address 
         return;
     }
 
-    if (entry->lock_count == 0) {
+    if (!entry->locked()) {
         // TODO: many entries are unlocked; why is this reported at level 1?
         debugs(12, DBG_IMPORTANT, "neighborsUdpAck: '" << storeKeyText(key) << "' has no locks");
         neighborCountIgnored(p);
@@ -1190,6 +1205,9 @@ peerNoteDigestGone(CachePeer * p)
 static void
 peerDNSConfigure(const ipcache_addrs *ia, const DnsLookupDetails &, void *data)
 {
+    // TODO: connections to no-longer valid IP addresses should be
+    // closed when we can detect such IP addresses.
+
     CachePeer *p = (CachePeer *)data;
 
     int j;
@@ -1234,6 +1252,8 @@ peerDNSConfigure(const ipcache_addrs *ia, const DnsLookupDetails &, void *data)
             eventAddIsh("netdbExchangeStart", netdbExchangeStart, p, 30.0, 1);
 #endif
 
+    if (p->standby.mgr.valid())
+        PeerPoolMgr::Checkpoint(p->standby.mgr, "resolved peer");
 }
 
 static void
@@ -1333,11 +1353,11 @@ peerProbeConnect(CachePeer * p)
 }
 
 static void
-peerProbeConnectDone(const Comm::ConnectionPointer &conn, comm_err_t status, int xerrno, void *data)
+peerProbeConnectDone(const Comm::ConnectionPointer &conn, Comm::Flag status, int xerrno, void *data)
 {
     CachePeer *p = (CachePeer*)data;
 
-    if (status == COMM_OK) {
+    if (status == Comm::OK) {
         peerConnectSucceded(p);
     } else {
         peerConnectFailedSilent(p);
@@ -1426,9 +1446,8 @@ peerCountMcastPeersDone(void *data)
 
     fake->abort(); // sets ENTRY_ABORTED and initiates releated cleanup
     HTTPMSGUNLOCK(fake->mem_obj->request);
-    fake->unlock();
-    HTTPMSGUNLOCK(psstate->request);
-    cbdataFree(psstate);
+    fake->unlock("peerCountMcastPeersDone");
+    delete psstate;
 }
 
 static void
@@ -1565,6 +1584,8 @@ dump_peer_options(StoreEntry * sentry, CachePeer * p)
 
     if (p->max_conn > 0)
         storeAppendPrintf(sentry, " max-conn=%d", p->max_conn);
+    if (p->standby.limit > 0)
+        storeAppendPrintf(sentry, " standby=%d", p->standby.limit);
 
     if (p->options.originserver)
         storeAppendPrintf(sentry, " originserver");
@@ -1732,7 +1753,7 @@ neighborsHtcpReply(const cache_key * key, HtcpReplyData * htcp, const Ip::Addres
         return;
     }
 
-    if (e->lock_count == 0) {
+    if (!e->locked()) {
         // TODO: many entries are unlocked; why is this reported at level 1?
         debugs(12, DBG_IMPORTANT, "neighborsUdpAck: '" << storeKeyText(key) << "' has no locks");
         neighborCountIgnored(p);
@@ -1778,3 +1799,4 @@ neighborsHtcpClear(StoreEntry * e, const char *uri, HttpRequest * req, const Htt
 }
 
 #endif
+

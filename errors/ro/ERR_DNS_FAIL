@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>EROARE: URL-ul cerut nu a putut fi accesat</title>
 <style type="text/css"><!-- 
@@ -25,7 +26,7 @@ body
 
 <p>Serverul DNS a răspuns:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%z</pre>
 </blockquote>
 
 <p>Aceasta înseamnă că serverul de cache nu a putut rezolva numele host-ului scris în URL. Verificaţi dacă adresa este corectă.</p>

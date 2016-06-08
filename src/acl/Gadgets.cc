@@ -1,49 +1,29 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * DEBUG: section 28    Access Control
- * AUTHOR: Duane Wessels
  *
  * This file contains ACL routines that are not part of the
  * ACL class, nor any other class yet, and that need to be
  * factored into appropriate places. They are here to reduce
  * unneeded dependencies between the ACL class and the rest
  * of squid.
- *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
  */
 
 #include "squid.h"
 #include "acl/Acl.h"
-#include "acl/AclNameList.h"
 #include "acl/AclDenyInfoList.h"
+#include "acl/AclNameList.h"
 #include "acl/Checklist.h"
-#include "acl/Tree.h"
-#include "acl/Strategised.h"
 #include "acl/Gadgets.h"
+#include "acl/Strategised.h"
+#include "acl/Tree.h"
 #include "ConfigParser.h"
 #include "errorpage.h"
 #include "globals.h"
@@ -134,7 +114,7 @@ aclParseDenyInfoLine(AclDenyInfoList ** head)
 
     /* first expect a page name */
 
-    if ((t = strtok(NULL, w_space)) == NULL) {
+    if ((t = ConfigParser::NextToken()) == NULL) {
         debugs(28, DBG_CRITICAL, "aclParseDenyInfoLine: " << cfg_filename << " line " << config_lineno << ": " << config_input_line);
         debugs(28, DBG_CRITICAL, "aclParseDenyInfoLine: missing 'error page' parameter.");
         return;
@@ -147,7 +127,7 @@ aclParseDenyInfoLine(AclDenyInfoList ** head)
     /* next expect a list of ACL names */
     Tail = &A->acl_list;
 
-    while ((t = strtok(NULL, w_space))) {
+    while ((t = ConfigParser::NextToken())) {
         L = (AclNameList *)memAllocate(MEM_ACL_NAME_LIST);
         xstrncpy(L->name, t, ACL_NAME_SZ-1);
         *Tail = L;
@@ -163,7 +143,7 @@ aclParseDenyInfoLine(AclDenyInfoList ** head)
 
     for (B = *head, T = head; B; T = &B->next, B = B->next)
 
-        ;	/* find the tail */
+        ;   /* find the tail */
     *T = A;
 }
 
@@ -171,7 +151,7 @@ void
 aclParseAccessLine(const char *directive, ConfigParser &, acl_access **treep)
 {
     /* first expect either 'allow' or 'deny' */
-    const char *t = ConfigParser::strtokFile();
+    const char *t = ConfigParser::NextToken();
 
     if (!t) {
         debugs(28, DBG_CRITICAL, "aclParseAccessLine: " << cfg_filename << " line " << config_lineno << ": " << config_input_line);
@@ -342,3 +322,4 @@ aclDestroyDenyInfoList(AclDenyInfoList ** list)
 
     *list = NULL;
 }
+

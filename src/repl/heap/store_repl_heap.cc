@@ -1,7 +1,13 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
 
 /*
  * DEBUG: section 81    Store HEAP Removal Policies
- * AUTHOR: Henrik Nordstrom
  *
  * Based on the ideas of the heap policy implemented by John Dilley of
  * Hewlett Packard. Rewritten from scratch when modularizing the removal
@@ -9,42 +15,14 @@
  *
  * For details on the original heap policy work and the thinking behind see
  * http://www.hpl.hp.com/techreports/1999/HPL-1999-69.html
- *
- *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
  */
 
 #include "squid.h"
 #include "heap.h"
-#include "store_heap_replacement.h"
+#include "MemObject.h"
 #include "SquidList.h"
 #include "Store.h"
-#include "MemObject.h"
+#include "store_heap_replacement.h"
 #include "wordlist.h"
 
 REMOVALPOLICYCREATE createRemovalPolicy_heap;
@@ -105,7 +83,7 @@ heap_add(RemovalPolicy * policy, StoreEntry * entry, RemovalPolicyNode * node)
     assert(!node->data);
 
     if (EBIT_TEST(entry->flags, ENTRY_SPECIAL))
-        return;			/* We won't manage these.. they messes things up */
+        return;         /* We won't manage these.. they messes things up */
 
     node->data = heap_insert(h->theHeap, entry);
 
@@ -165,7 +143,7 @@ heap_walkNext(RemovalPolicyWalker * walker)
     StoreEntry *entry;
 
     if (heap_walk->current >= heap_nodes(h->theHeap))
-        return NULL;		/* done */
+        return NULL;        /* done */
 
     entry = (StoreEntry *) heap_peep(h->theHeap, heap_walk->current++);
 
@@ -222,7 +200,7 @@ heap_purgeNext(RemovalPurgeWalker * walker)
 try_again:
 
     if (heap_empty(h->theHeap))
-        return NULL;		/* done */
+        return NULL;        /* done */
 
     age = heap_peepminkey(h->theHeap);
 
@@ -230,7 +208,7 @@ try_again:
 
     if (entry->locked()) {
 
-        entry->lock();
+        entry->lock("heap_purgeNext");
         linklistPush(&heap_walker->locked_entries, entry);
 
         goto try_again;
@@ -263,7 +241,7 @@ heap_purgeDone(RemovalPurgeWalker * walker)
     while ((entry = (StoreEntry *)linklistShift(&heap_walker->locked_entries))) {
         heap_node *node = heap_insert(h->theHeap, entry);
         h->setPolicyNode(entry, node);
-        entry->unlock();
+        entry->unlock("heap_purgeDone");
     }
 
     safe_free(walker->_data);
@@ -368,3 +346,4 @@ createRemovalPolicy_heap(wordlist * args)
 
     return policy;
 }
+

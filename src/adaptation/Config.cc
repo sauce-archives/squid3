@@ -1,31 +1,9 @@
-
 /*
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #include "squid.h"
@@ -36,12 +14,13 @@
 #include "adaptation/History.h"
 #include "adaptation/Service.h"
 #include "adaptation/ServiceGroups.h"
-#include "base/Vector.h"
 #include "ConfigParser.h"
 #include "globals.h"
 #include "HttpReply.h"
 #include "HttpRequest.h"
 #include "Store.h"
+
+#include <algorithm>
 
 bool Adaptation::Config::Enabled = false;
 char *Adaptation::Config::masterx_shared_name = NULL;
@@ -66,7 +45,8 @@ const char *metasBlacklist[] = {
     "Transfer-Complete",
     NULL
 };
-Notes Adaptation::Config::metaHeaders("ICAP header", metasBlacklist);
+Notes Adaptation::Config::metaHeaders("ICAP header", metasBlacklist, true);
+bool Adaptation::Config::needHistory = false;
 
 Adaptation::ServiceConfig*
 Adaptation::Config::newServiceConfig() const
@@ -86,19 +66,35 @@ Adaptation::Config::removeService(const String& service)
         for (SGSI it = services.begin(); it != services.end(); ++it) {
             if (*it == service) {
                 group->removedServices.push_back(service);
-                group->services.prune(service);
-                debugs(93, 5, HERE << "adaptation service " << service <<
+                ServiceGroup::Store::iterator newend;
+                newend = std::remove(group->services.begin(), group->services.end(), service);
+                group->services.resize(newend-group->services.begin());
+                debugs(93, 5, "adaptation service " << service <<
                        " removed from group " << group->id);
                 break;
             }
         }
         if (services.empty()) {
             removeRule(group->id);
-            AllGroups().prune(group);
+            Groups::iterator newend;
+            newend = std::remove(AllGroups().begin(), AllGroups().end(), group);
+            AllGroups().resize(newend-AllGroups().begin());
         } else {
             ++i;
         }
     }
+}
+
+Adaptation::ServiceConfigPointer
+Adaptation::Config::findServiceConfig(const String &service)
+{
+    typedef ServiceConfigs::const_iterator SCI;
+    const ServiceConfigs& configs = serviceConfigs;
+    for (SCI cfg = configs.begin(); cfg != configs.end(); ++cfg) {
+        if ((*cfg)->key == service)
+            return *cfg;
+    }
+    return NULL;
 }
 
 void
@@ -109,8 +105,10 @@ Adaptation::Config::removeRule(const String& id)
     for (ARI it = rules.begin(); it != rules.end(); ++it) {
         AccessRule* rule = *it;
         if (rule->groupId == id) {
-            debugs(93, 5, HERE << "removing access rules for:" << id);
-            AllRules().prune(rule);
+            debugs(93, 5, "removing access rules for:" << id);
+            AccessRules::iterator newend;
+            newend = std::remove(AllRules().begin(), AllRules().end(), rule);
+            AllRules().resize(newend-AllRules().begin());
             delete (rule);
             break;
         }
@@ -126,7 +124,7 @@ Adaptation::Config::clear()
     const ServiceConfigs& configs = serviceConfigs;
     for (SCI cfg = configs.begin(); cfg != configs.end(); ++cfg)
         removeService((*cfg)->key);
-    serviceConfigs.clean();
+    serviceConfigs.clear();
     debugs(93, 3, HERE << "rules: " << AllRules().size() << ", groups: " <<
            AllGroups().size() << ", services: " << serviceConfigs.size());
 }
@@ -150,7 +148,7 @@ Adaptation::Config::freeService()
 
     DetachServices();
 
-    serviceConfigs.clean();
+    serviceConfigs.clear();
 }
 
 void
@@ -197,7 +195,7 @@ Adaptation::Config::finalize()
     debugs(93,3, HERE << "Created " << created << " adaptation services");
 
     // services remember their configs; we do not have to
-    serviceConfigs.clean();
+    serviceConfigs.clear();
     return true;
 }
 
@@ -264,8 +262,7 @@ Adaptation::Config::DumpServiceGroups(StoreEntry *entry, const char *name)
 void
 Adaptation::Config::ParseAccess(ConfigParser &parser)
 {
-    String groupId;
-    ConfigParser::ParseString(&groupId);
+    String groupId = ConfigParser::NextToken();
     AccessRule *r;
     if (!(r=FindRuleByGroupId(groupId))) {
         r = new AccessRule(groupId);
@@ -296,8 +293,8 @@ Adaptation::Config::DumpAccess(StoreEntry *entry, const char *name)
 }
 
 Adaptation::Config::Config() :
-        onoff(0), service_failure_limit(0), oldest_service_failure(0),
-        service_revival_delay(0)
+    onoff(0), service_failure_limit(0), oldest_service_failure(0),
+    service_revival_delay(0)
 {}
 
 // XXX: this is called for ICAP and eCAP configs, but deals mostly
@@ -306,3 +303,4 @@ Adaptation::Config::~Config()
 {
     freeService();
 }
+

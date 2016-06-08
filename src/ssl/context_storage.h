@@ -1,22 +1,29 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_SSL_CONTEXT_STORAGE_H
 #define SQUID_SSL_CONTEXT_STORAGE_H
 
-#if USE_SSL
+#if USE_OPENSSL
 
 #include "base/LruMap.h"
-#include "SquidTime.h"
 #include "CacheManager.h"
 #include "ip/Address.h"
 #include "mgr/Action.h"
 #include "mgr/Command.h"
+#include "SquidTime.h"
 #include "ssl/gadgets.h"
-#if HAVE_MAP
-#include <map>
-#endif
-#if HAVE_LIST
+
 #include <list>
-#endif
+#include <map>
+#if HAVE_OPENSSL_SSL_H
 #include <openssl/ssl.h>
+#endif
 
 /// TODO: Replace on real size.
 #define SSL_CTX_SIZE 1024
@@ -68,6 +75,7 @@ private:
 /// Global cache for store all SSL server certificates.
 extern GlobalContextStorage TheGlobalContextStorage;
 } //namespace Ssl
-#endif // USE_SSL
+#endif // USE_OPENSSL
 
 #endif // SQUID_SSL_CONTEXT_STORAGE_H
+

@@ -1,4 +1,12 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
+/*
  * -----------------------------------------------------------------------------
  *
  * Author: Markus Moeller (markus_moeller at compuserve.com)
@@ -24,12 +32,10 @@
 
 #include "squid.h"
 
-#ifdef HAVE_LDAP
+#if HAVE_LDAP
 
 #include "support.h"
-#ifdef HAVE_TIME_H
-#include <time.h>
-#endif
+#include <ctime>
 
 const char *
 LogTime()
@@ -85,3 +91,4 @@ warn(char *format,...)
 
 #endif /* __GNUC__ */
 #endif
+

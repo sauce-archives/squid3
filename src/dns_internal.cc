@@ -1,41 +1,20 @@
 /*
- * DEBUG: section 78    DNS lookups; interacts with lib/rfc1035.c
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 78    DNS lookups; interacts with lib/rfc1035.c */
 
 #include "squid.h"
 #include "base/InstanceId.h"
+#include "comm.h"
 #include "comm/Connection.h"
 #include "comm/ConnOpener.h"
-#include "comm.h"
 #include "comm/Loops.h"
+#include "comm/Read.h"
 #include "comm/Write.h"
 #include "dlink.h"
 #include "event.h"
@@ -60,18 +39,11 @@
 #if HAVE_ARPA_NAMESER_H
 #include <arpa/nameser.h>
 #endif
+#include <cerrno>
 #if HAVE_RESOLV_H
 #include <resolv.h>
 #endif
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
 
-/* MS Visual Studio Projects are monolithic, so we need the following
-   #ifndef to exclude the internal DNS code from compile process when
-   using external DNS process.
- */
-#if !USE_DNSHELPER
 #if _SQUID_WINDOWS_
 #define REG_TCPIP_PARA_INTERFACES "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces"
 #define REG_TCPIP_PARA "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters"
@@ -240,9 +212,7 @@ static void idnsAddPathComponent(const char *buf);
 static void idnsFreeNameservers(void);
 static void idnsFreeSearchpath(void);
 static bool idnsParseNameservers(void);
-#if _SQUID_WINDOWS_
 static bool idnsParseResolvConf(void);
-#endif
 #if _SQUID_WINDOWS_
 static bool idnsParseWIN32Registry(void);
 static void idnsParseWIN32SearchList(const char *);
@@ -407,25 +377,20 @@ idnsParseNameservers(void)
     return result;
 }
 
-#if !_SQUID_WINDOWS_
 static bool
 idnsParseResolvConf(void)
 {
-    FILE *fp;
-    char buf[RESOLV_BUFSZ];
-    const char *t;
     bool result = false;
-    fp = fopen(_PATH_RESCONF, "r");
+#if !_SQUID_WINDOWS_
+    FILE *fp = fopen(_PATH_RESCONF, "r");
 
     if (fp == NULL) {
         debugs(78, DBG_IMPORTANT, "" << _PATH_RESCONF << ": " << xstrerror());
         return false;
     }
 
-#if _SQUID_CYGWIN_
-    setmode(fileno(fp), O_TEXT);
-#endif
-
+    char buf[RESOLV_BUFSZ];
+    const char *t = NULL;
     while (fgets(buf, RESOLV_BUFSZ, fp)) {
         t = strtok(buf, w_space);
 
@@ -488,10 +453,9 @@ idnsParseResolvConf(void)
     }
 
     fclose(fp);
+#endif
     return result;
 }
-
-#endif
 
 #if _SQUID_WINDOWS_
 static void
@@ -802,18 +766,18 @@ idnsTickleQueue(void)
 }
 
 static void
-idnsSentQueryVC(const Comm::ConnectionPointer &conn, char *buf, size_t size, comm_err_t flag, int xerrno, void *data)
+idnsSentQueryVC(const Comm::ConnectionPointer &conn, char *buf, size_t size, Comm::Flag flag, int xerrno, void *data)
 {
     nsvc * vc = (nsvc *)data;
 
-    if (flag == COMM_ERR_CLOSING)
+    if (flag == Comm::ERR_CLOSING)
         return;
 
     // XXX: irrelevant now that we have conn pointer?
     if (!Comm::IsConnOpen(conn) || fd_table[conn->fd].closing())
         return;
 
-    if (flag != COMM_OK || size <= 0) {
+    if (flag != Comm::OK || size <= 0) {
         conn->close();
         return;
     }
@@ -856,11 +820,11 @@ idnsDoSendQueryVC(nsvc *vc)
 }
 
 static void
-idnsInitVCConnected(const Comm::ConnectionPointer &conn, comm_err_t status, int xerrno, void *data)
+idnsInitVCConnected(const Comm::ConnectionPointer &conn, Comm::Flag status, int xerrno, void *data)
 {
     nsvc * vc = (nsvc *)data;
 
-    if (status != COMM_OK || !conn) {
+    if (status != Comm::OK || !conn) {
         char buf[MAX_IPSTRLEN] = "";
         if (vc->ns < nns)
             nameservers[vc->ns].S.toStr(buf,MAX_IPSTRLEN);
@@ -905,15 +869,12 @@ idnsInitVC(int nsv)
     Comm::ConnectionPointer conn = new Comm::Connection();
 
     if (!Config.Addrs.udp_outgoing.isNoAddr())
-        conn->local = Config.Addrs.udp_outgoing;
+        conn->setAddrs(Config.Addrs.udp_outgoing, nameservers[nsv].S);
     else
-        conn->local = Config.Addrs.udp_incoming;
+        conn->setAddrs(Config.Addrs.udp_incoming, nameservers[nsv].S);
 
-    conn->remote = nameservers[nsv].S;
-
-    if (conn->remote.isIPv4()) {
+    if (conn->remote.isIPv4())
         conn->local.setIPv4();
-    }
 
     AsyncCall::Pointer call = commCbCall(78,3, "idnsInitVCConnected", CommConnectCbPtrFun(idnsInitVCConnected, vc));
 
@@ -1184,9 +1145,9 @@ idnsGrokReply(const char *buf, size_t sz, int from_ns)
 
 #if WHEN_EDNS_RESPONSES_ARE_PARSED
 // TODO: actually gr the message right here.
-//	pull out the DNS meta data we need (A records, AAAA records and EDNS OPT) and store in q
-//	this is overall better than force-feeding A response with AAAA an section later anyway.
-//	AND allows us to merge AN+AR sections from both responses (one day)
+//  pull out the DNS meta data we need (A records, AAAA records and EDNS OPT) and store in q
+//  this is overall better than force-feeding A response with AAAA an section later anyway.
+//  AND allows us to merge AN+AR sections from both responses (one day)
 
     if (q->edns_seen >= 0) {
         if (max_shared_edns == nameservers[from_ns].last_seen_edns && max_shared_edns < q->edns_seen) {
@@ -1444,14 +1405,14 @@ idnsCheckQueue(void *unused)
 }
 
 static void
-idnsReadVC(const Comm::ConnectionPointer &conn, char *buf, size_t len, comm_err_t flag, int xerrno, void *data)
+idnsReadVC(const Comm::ConnectionPointer &conn, char *buf, size_t len, Comm::Flag flag, int xerrno, void *data)
 {
     nsvc * vc = (nsvc *)data;
 
-    if (flag == COMM_ERR_CLOSING)
+    if (flag == Comm::ERR_CLOSING)
         return;
 
-    if (flag != COMM_OK || len <= 0) {
+    if (flag != Comm::OK || len <= 0) {
         if (Comm::IsConnOpen(conn))
             conn->close();
         return;
@@ -1477,14 +1438,14 @@ idnsReadVC(const Comm::ConnectionPointer &conn, char *buf, size_t len, comm_err_
 }
 
 static void
-idnsReadVCHeader(const Comm::ConnectionPointer &conn, char *buf, size_t len, comm_err_t flag, int xerrno, void *data)
+idnsReadVCHeader(const Comm::ConnectionPointer &conn, char *buf, size_t len, Comm::Flag flag, int xerrno, void *data)
 {
     nsvc * vc = (nsvc *)data;
 
-    if (flag == COMM_ERR_CLOSING)
+    if (flag == Comm::ERR_CLOSING)
         return;
 
-    if (flag != COMM_OK || len <= 0) {
+    if (flag != Comm::OK || len <= 0) {
         if (Comm::IsConnOpen(conn))
             conn->close();
         return;
@@ -1599,12 +1560,10 @@ dnsInit(void)
     assert(0 == nns);
     idnsAddMDNSNameservers();
     bool nsFound = idnsParseNameservers();
-#if !_SQUID_WINDOWS_
 
     if (!nsFound)
         nsFound = idnsParseResolvConf();
 
-#endif
 #if _SQUID_WINDOWS_
     if (!nsFound)
         nsFound = idnsParseWIN32Registry();
@@ -1891,4 +1850,4 @@ snmp_netDnsFn(variable_list * Var, snint * ErrP)
 }
 
 #endif /*SQUID_SNMP */
-#endif /* USE_DNSHELPER */
+

@@ -1,31 +1,9 @@
 /*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #ifndef SQUID_HTTPMSG_H
@@ -33,10 +11,10 @@
 
 #include "base/Lock.h"
 #include "BodyPipe.h"
+#include "http/ProtocolVersion.h"
+#include "http/StatusCode.h"
 #include "HttpHeader.h"
 #include "HttpRequestMethod.h"
-#include "http/StatusCode.h"
-#include "http/ProtocolVersion.h"
 
 /// common parts of HttpRequest and HttpReply
 class HttpMsg : public RefCountable
@@ -67,6 +45,8 @@ public:
     bool persistent() const;
 
 public:
+    /// HTTP-Version field in the first line of the message.
+    /// see RFC 7230 section 3.1
     Http::ProtocolVersion http_ver;
 
     HttpHeader header;
@@ -80,11 +60,12 @@ public:
 
     int64_t content_length;
 
-    AnyP::ProtocolType protocol;
-
     HttpMsgParseState pstate;   /* the current parsing state */
 
     BodyPipe::Pointer body_pipe; // optional pipeline to receive message body
+
+    /// copies Cache-Control header to this message
+    void putCc(const HttpHdrCc *otherCc);
 
     // returns true and sets hdr_sz on success
     // returns false and sets *error to zero when needs more data
@@ -126,3 +107,4 @@ int httpMsgIsolateHeaders(const char **parse_start, int len, const char **blk_st
 #define HTTPMSGLOCK(a) (a)->lock()
 
 #endif /* SQUID_HTTPMSG_H */
+

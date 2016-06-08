@@ -1,3 +1,10 @@
+## Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+##
+## Squid software is distributed under GPLv2+ license and includes
+## contributions from numerous individuals and organizations.
+## Please see the COPYING and CONTRIBUTORS files for details.
+##
+
 # This file is supposed to run all the tests required to identify which
 # configured modules are able to be built in this environment
 
@@ -12,8 +19,10 @@ if test "x$enable_auth_ntlm" != "xno" -a "x$enable_auth" = "xno" ; then
     AC_MSG_ERROR([NTLM auth requested but auth disabled])
 fi
 #define list of modules to build
+auto_auth_ntlm_modules=no
 if test "x$enable_auth_ntlm" = "xyes" ; then
     SQUID_LOOK_FOR_MODULES([$srcdir/helpers/ntlm_auth],[enable_auth_ntlm])
+  auto_auth_ntlm_modules=yes
 fi
 #handle the "none" special case
 if test "x$enable_auth_ntlm" = "xnone" ; then
@@ -47,7 +56,11 @@ if test "x$enable_auth_ntlm" != "xno" ; then
 
       if test -d "$srcdir/helpers/ntlm_auth/$helper"; then
         if test "$BUILD_HELPER" != "$helper"; then
-          AC_MSG_NOTICE([NTLM auth helper $helper ... found but cannot be built])
+          if test "x$auto_auth_ntlm_modules" = "xyes"; then
+            AC_MSG_NOTICE([NTLM auth helper $helper ... found but cannot be built])
+          else
+            AC_MSG_ERROR([NTLM auth helper $helper ... found but cannot be built])
+          fi
         else
           NTLM_AUTH_HELPERS="$NTLM_AUTH_HELPERS $BUILD_HELPER"
         fi
@@ -59,3 +72,16 @@ fi
 AC_MSG_NOTICE([NTLM auth helpers to be built: $NTLM_AUTH_HELPERS])
 AM_CONDITIONAL(ENABLE_AUTH_NTLM, test "x$enable_auth_ntlm" != "xno")
 AC_SUBST(NTLM_AUTH_HELPERS)
+
+## NTLM requires some special Little-Endian conversion hacks
+if test "x$enable_auth_ntlm" != "xno"; then
+  AC_CHECK_HEADERS(machine/byte_swap.h sys/bswap.h endian.h sys/endian.h)
+  AC_CHECK_FUNCS(
+    bswap_16 bswap16 \
+    bswap_32 bswap32 \
+    htole16 __htole16 \
+    htole32 __htole32 \
+    le16toh __le16toh \
+    le32toh __le32toh \
+  )
+fi

@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERREUR : L'URL demandada a pas pogut èsser cargada</title>
 <style type="text/css"><!-- 
@@ -17,17 +18,17 @@ body
 <hr>
 
 <div id="content">
-<p></p>
+<p>An FTP authentication failure occurred while trying to retrieve the URL: <a href="%U">%U</a></p>
 
-<p></p>
+<p>Squid sent the following FTP command:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%f</pre>
 </blockquote>
 
 <p>Lo servidor a respondut :</p>
 <blockquote id="sysmsg">
-<pre></pre>
-<pre></pre>
+<pre>%F</pre>
+<pre>%g</pre>
 </blockquote>
 
 <p>Vòstre administrator d'amagatal es <a href="mailto:%w">%w</a>.</p>

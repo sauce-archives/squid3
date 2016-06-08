@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 25    MIME Parsing and Internal Icons
- * AUTHOR: Harvest Derived
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 25    MIME Parsing and Internal Icons */
 
 #include "squid.h"
 #include "disk.h"
@@ -62,11 +40,14 @@ class MimeIcon : public StoreClient
 public:
     explicit MimeIcon(const char *aName);
     ~MimeIcon();
+    MEMPROXY_CLASS(MimeIcon);
+
     void setName(char const *);
     char const * getName() const;
     void load();
-    void created(StoreEntry *newEntry);
-    MEMPROXY_CLASS(MimeIcon);
+
+    /* StoreClient API */
+    virtual void created(StoreEntry *);
 
 private:
     const char *icon_;
@@ -139,7 +120,7 @@ mimeGetEntry(const char *fn, int skip_encodings)
 }
 
 MimeIcon::MimeIcon(const char *aName) :
-        icon_(xstrdup(aName))
+    icon_(xstrdup(aName))
 {
     url_ = xstrdup(internalLocalUri("/squid-internal-static/icons/", icon_));
 }
@@ -383,32 +364,43 @@ MimeIcon::load()
 }
 
 void
-MimeIcon::created (StoreEntry *newEntry)
+MimeIcon::created(StoreEntry *newEntry)
 {
     /* if the icon is already in the store, do nothing */
     if (!newEntry->isNull())
         return;
+    // XXX: if a 204 is cached due to earlier load 'failure' we should try to reload.
 
-    int fd;
-    int n;
-    RequestFlags flags;
+    // default is a 200 object with image data.
+    // set to the backup value of 204 on image loading errors
+    Http::StatusCode status = Http::scOkay;
+
+    static char path[MAXPATHLEN];
+    *path = 0;
+    if (snprintf(path, sizeof(path)-1, "%s/%s", Config.icons.directory, icon_) < 0) {
+        debugs(25, DBG_CRITICAL, "ERROR: icon file '" << Config.icons.directory << "/" << icon_ << "' path is longer than " << MAXPATHLEN << " bytes");
+        status = Http::scNoContent;
+    }
+
+    int fd = -1;
+    errno = 0;
+    if (status == Http::scOkay && (fd = file_open(path, O_RDONLY | O_BINARY)) < 0) {
+        int xerrno = errno;
+        debugs(25, DBG_CRITICAL, "ERROR: opening icon file " << path << ": " << xstrerr(xerrno));
+        status = Http::scNoContent;
+    }
+
     struct stat sb;
-    LOCAL_ARRAY(char, path, MAXPATHLEN);
-    char *buf;
-
-    snprintf(path, MAXPATHLEN, "%s/%s", Config.icons.directory, icon_);
-
-    fd = file_open(path, O_RDONLY | O_BINARY);
-    if (fd < 0) {
-        debugs(25, DBG_CRITICAL, "Problem opening icon file " << path << ": " << xstrerror());
-        return;
-    }
-    if (fstat(fd, &sb) < 0) {
-        debugs(25, DBG_CRITICAL, "Problem opening icon file. Fd: " << fd << ", fstat error " << xstrerror());
+    errno = 0;
+    if (status == Http::scOkay && fstat(fd, &sb) < 0) {
+        int xerrno = errno;
+        debugs(25, DBG_CRITICAL, "ERROR: opening icon file " << path << " FD " << fd << ", fstat error " << xstrerr(xerrno));
         file_close(fd);
-        return;
+        status = Http::scNoContent;
     }
 
+    // fill newEntry with a canned 2xx response object
+    RequestFlags flags;
     flags.cachable = true;
     StoreEntry *e = storeCreateEntry(url_,url_,flags,Http::METHOD_GET);
     assert(e != NULL);
@@ -418,30 +410,37 @@ MimeIcon::created (StoreEntry *newEntry)
     HttpRequest *r = HttpRequest::CreateFromUrl(url_);
 
     if (NULL == r)
-        fatal("mimeLoadIcon: cannot parse internal URL");
+        fatalf("mimeLoadIcon: cannot parse internal URL: %s", url_);
 
     e->mem_obj->request = r;
     HTTPMSGLOCK(e->mem_obj->request);
 
     HttpReply *reply = new HttpReply;
 
-    reply->setHeaders(Http::scOkay, NULL, mimeGetContentType(icon_), sb.st_size, sb.st_mtime, -1);
+    if (status == Http::scNoContent)
+        reply->setHeaders(status, NULL, NULL, 0, -1, -1);
+    else
+        reply->setHeaders(status, NULL, mimeGetContentType(icon_), sb.st_size, sb.st_mtime, -1);
     reply->cache_control = new HttpHdrCc();
     reply->cache_control->maxAge(86400);
     reply->header.putCc(reply->cache_control);
     e->replaceHttpReply(reply);
 
-    /* read the file into the buffer and append it to store */
-    buf = (char *)memAllocate(MEM_4K_BUF);
-    while ((n = FD_READ_METHOD(fd, buf, 4096)) > 0)
-        e->append(buf, n);
+    if (status == Http::scOkay) {
+        /* read the file into the buffer and append it to store */
+        int n;
+        char *buf = (char *)memAllocate(MEM_4K_BUF);
+        while ((n = FD_READ_METHOD(fd, buf, sizeof(*buf))) > 0)
+            e->append(buf, n);
 
-    file_close(fd);
+        file_close(fd);
+        memFree(buf, MEM_4K_BUF);
+    }
+
     e->flush();
     e->complete();
     e->timestampsSet();
-    e->unlock();
-    memFree(buf, MEM_4K_BUF);
+    e->unlock("MimeIcon::created");
     debugs(25, 3, "Loaded icon " << url_);
 }
 
@@ -457,13 +456,13 @@ MimeEntry::MimeEntry(const char *aPattern, const regex_t &compiledPattern,
                      const char *aContentType, const char *aContentEncoding,
                      const char *aTransferMode, bool optionViewEnable,
                      bool optionDownloadEnable, const char *anIconName) :
-        pattern(xstrdup(aPattern)),
-        compiled_pattern(compiledPattern),
-        content_type(xstrdup(aContentType)),
-        content_encoding(xstrdup(aContentEncoding)),
-        view_option(optionViewEnable),
-        download_option(optionViewEnable),
-        theIcon(anIconName), next(NULL)
+    pattern(xstrdup(aPattern)),
+    compiled_pattern(compiledPattern),
+    content_type(xstrdup(aContentType)),
+    content_encoding(xstrdup(aContentEncoding)),
+    view_option(optionViewEnable),
+    download_option(optionViewEnable),
+    theIcon(anIconName), next(NULL)
 {
     if (!strcasecmp(aTransferMode, "ascii"))
         transfer_mode = 'A';
@@ -472,3 +471,4 @@ MimeEntry::MimeEntry(const char *aPattern, const regex_t &compiledPattern,
     else
         transfer_mode = 'I';
 }
+

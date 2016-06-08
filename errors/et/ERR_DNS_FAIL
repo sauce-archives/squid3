@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>VIGA: P&auml;ring URLile ei saa vastust</title>
 <style type="text/css"><!-- 
@@ -25,7 +26,7 @@ body
 
 <p>DNS server vastas:</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%z</pre>
 </blockquote>
 
 <p>Mis t&auml;hendab vahemälu server ei suutnud lahendada URLis antud hosti nime. Palun kontrollige aadressi korrektsust.</p>
@@ -36,7 +37,7 @@ body
 
 <hr>
 <div id="footer">
-<p></p>
+<p>Generated %T by %h (%s)</p>
 <!-- %c -->
 </div>
 </body></html>

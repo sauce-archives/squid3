@@ -1,34 +1,13 @@
 /*
- * DEBUG: section 88    Client-side Reply Routines
- * AUTHOR: Robert Collins (Originally Duane Wessels in client_side.c)
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 88    Client-side Reply Routines */
+
 #include "squid.h"
 #include "acl/FilledChecklist.h"
 #include "acl/Gadgets.h"
@@ -40,7 +19,6 @@
 #include "fde.h"
 #include "format/Token.h"
 #include "FwdState.h"
-#include "globals.h"
 #include "globals.h"
 #include "HttpHeaderTools.h"
 #include "HttpReply.h"
@@ -141,11 +119,29 @@ void clientReplyContext::setReplyToError(const HttpRequestMethod& method, ErrorS
     /* Now the caller reads to get this */
 }
 
+void
+clientReplyContext::setReplyToReply(HttpReply *futureReply)
+{
+    Must(futureReply);
+    http->al->http.code = futureReply->sline.status();
+
+    HttpRequestMethod method;
+    if (http->request) { // nil on responses to unparsable requests
+        http->request->ignoreRange("responding with a Squid-generated reply");
+        method = http->request->method;
+    }
+
+    createStoreEntry(method, RequestFlags());
+
+    http->storeEntry()->storeErrorResponse(futureReply);
+    /* Now the caller reads to get futureReply */
+}
+
 // Assumes that the entry contains an error response without Content-Range.
 // To use with regular entries, make HTTP Range header removal conditional.
 void clientReplyContext::setReplyToStoreEntry(StoreEntry *entry, const char *reason)
 {
-    entry->lock(); // removeClientStoreReference() unlocks
+    entry->lock("clientReplyContext::setReplyToStoreEntry"); // removeClientStoreReference() unlocks
     sc = storeClientListAdd(entry, this);
 #if USE_DELAY_POOLS
     sc->setDelayId(DelayId::DelayClient(http));
@@ -169,7 +165,7 @@ clientReplyContext::removeStoreReference(store_client ** scp,
         *ep = NULL;
         storeUnregister(sc_tmp, e, this);
         *scp = NULL;
-        e->unlock();
+        e->unlock("clientReplyContext::removeStoreReference");
     }
 }
 
@@ -454,8 +450,10 @@ void
 clientReplyContext::cacheHit(StoreIOBuffer result)
 {
     /** Ignore if the HIT object is being deleted. */
-    if (deleting)
+    if (deleting) {
+        debugs(88, 3, "HIT object being deleted. Ignore the HIT.");
         return;
+    }
 
     StoreEntry *e = http->storeEntry();
 
@@ -476,6 +474,7 @@ clientReplyContext::cacheHit(StoreIOBuffer result)
     }
 
     if (result.length == 0) {
+        debugs(88, 5, "store IO buffer has no content. MISS");
         /* the store couldn't get enough data from the file for us to id the
          * object
          */
@@ -494,8 +493,8 @@ clientReplyContext::cacheHit(StoreIOBuffer result)
      */
     assert(http->logType == LOG_TCP_HIT);
 
-    if (strcmp(e->mem_obj->url, http->request->storeId()) != 0) {
-        debugs(33, DBG_IMPORTANT, "clientProcessHit: URL mismatch, '" << e->mem_obj->url << "' != '" << http->request->storeId() << "'");
+    if (strcmp(e->mem_obj->storeId(), http->request->storeId()) != 0) {
+        debugs(33, DBG_IMPORTANT, "clientProcessHit: URL mismatch, '" << e->mem_obj->storeId() << "' != '" << http->request->storeId() << "'");
         http->logType = LOG_TCP_MISS; // we lack a more precise LOG_*_MISS code
         processMiss();
         return;
@@ -534,17 +533,22 @@ clientReplyContext::cacheHit(StoreIOBuffer result)
     }
 
     if (r->method == Http::METHOD_PURGE) {
+        debugs(88, 5, "PURGE gets a HIT");
         removeClientStoreReference(&sc, http);
         e = NULL;
         purgeRequest();
         return;
     }
 
-    if (e->checkNegativeHit()
-            && !r->flags.noCacheHack()
-       ) {
+    if (e->checkNegativeHit() && !r->flags.noCacheHack()) {
+        debugs(88, 5, "negative-HIT");
         http->logType = LOG_TCP_NEGATIVE_HIT;
         sendMoreData(result);
+    } else if (blockedHit()) {
+        debugs(88, 5, "send_hit forces a MISS");
+        http->logType = LOG_TCP_MISS;
+        processMiss();
+        return;
     } else if (!http->flags.internal && refreshCheckHTTP(e, r)) {
         debugs(88, 5, "clientCacheHit: in refreshCheck() block");
         /*
@@ -575,7 +579,7 @@ clientReplyContext::cacheHit(StoreIOBuffer result)
              */
             http->logType = LOG_TCP_CLIENT_REFRESH_MISS;
             processMiss();
-        } else if (r->protocol == AnyP::PROTO_HTTP) {
+        } else if (r->url.getScheme() == AnyP::PROTO_HTTP) {
             debugs(88, 3, "validate HIT object? YES.");
             /*
              * Object needs to be revalidated
@@ -591,12 +595,14 @@ clientReplyContext::cacheHit(StoreIOBuffer result)
             http->logType = LOG_TCP_MISS;
             processMiss();
         }
-    } else if (r->conditional())
+    } else if (r->conditional()) {
+        debugs(88, 5, "conditional HIT");
         processConditional(result);
-    else {
+    } else {
         /*
          * plain ol' cache hit
          */
+        debugs(88, 5, "plain old HIT");
 
 #if USE_DELAY_POOLS
         if (e->store_status != STORE_OK)
@@ -621,7 +627,7 @@ clientReplyContext::processMiss()
     char *url = http->uri;
     HttpRequest *r = http->request;
     ErrorState *err = NULL;
-    debugs(88, 4, "clientProcessMiss: '" << RequestMethodStr(r->method) << " " << url << "'");
+    debugs(88, 4, r->method << ' ' << url);
 
     /**
      * We might have a left-over StoreEntry from a failed cache hit
@@ -677,10 +683,6 @@ clientReplyContext::processMiss()
             return;
         }
 
-        /** Check for internal requests. Update Protocol info if so. */
-        if (http->flags.internal)
-            r->protocol = AnyP::PROTO_INTERNAL;
-
         assert(r->clientConnectionManager == http->getConn());
 
         /** Start forwarding to get the new object from network */
@@ -698,8 +700,7 @@ clientReplyContext::processMiss()
 void
 clientReplyContext::processOnlyIfCachedMiss()
 {
-    debugs(88, 4, "clientProcessOnlyIfCachedMiss: '" <<
-           RequestMethodStr(http->request->method) << " " << http->uri << "'");
+    debugs(88, 4, http->request->method << ' ' << http->uri);
     http->al->http.code = Http::scGatewayTimeout;
     ErrorState *err = clientBuildError(ERR_ONLY_IF_CACHED_MISS, Http::scGatewayTimeout, NULL,
                                        http->getConn()->clientConnection->remote, http->request);
@@ -773,6 +774,30 @@ clientReplyContext::processConditional(StoreIOBuffer &result)
     }
 }
 
+/// whether squid.conf send_hit prevents us from serving this hit
+bool
+clientReplyContext::blockedHit() const
+{
+    if (!Config.accessList.sendHit)
+        return false; // hits are not blocked by default
+
+    if (http->flags.internal)
+        return false; // internal content "hits" cannot be blocked
+
+    if (const HttpReply *rep = http->storeEntry()->getReply()) {
+        std::unique_ptr<ACLFilledChecklist> chl(clientAclChecklistCreate(Config.accessList.sendHit, http));
+        chl->reply = const_cast<HttpReply*>(rep); // ACLChecklist API bug
+        HTTPMSGLOCK(chl->reply);
+        return chl->fastCheck() != ACCESS_ALLOWED; // when in doubt, block
+    }
+
+    // This does not happen, I hope, because we are called from CacheHit, which
+    // is called via a storeClientCopy() callback, and store should initialize
+    // the reply before calling that callback.
+    debugs(88, 3, "Missing reply!");
+    return false;
+}
+
 void
 clientReplyContext::purgeRequestFindObjectToPurge()
 {
@@ -801,7 +826,7 @@ purgeEntriesByUrl(HttpRequest * req, const char *url)
     for (HttpRequestMethod m(Http::METHOD_NONE); m != Http::METHOD_ENUM_END; ++m) {
         if (m.respMaybeCacheable()) {
             if (StoreEntry *entry = storeGetPublic(url, m)) {
-                debugs(88, 5, "purging " << RequestMethodStr(m) << ' ' << url);
+                debugs(88, 5, "purging " << *entry << ' ' << m << ' ' << url);
 #if USE_HTCP
                 neighborsHtcpClear(entry, url, req, m, HTCP_CLR_INVALIDATION);
                 if (m == Http::METHOD_GET || m == Http::METHOD_HEAD) {
@@ -871,17 +896,16 @@ clientReplyContext::purgeFoundObject(StoreEntry *entry)
         ErrorState *err = clientBuildError(ERR_ACCESS_DENIED, Http::scForbidden, NULL,
                                            http->getConn()->clientConnection->remote, http->request);
         startError(err);
-        return;
+        return; // XXX: leaking unused entry if some store does not keep it
     }
 
     StoreIOBuffer localTempBuffer;
     /* Swap in the metadata */
     http->storeEntry(entry);
 
-    http->storeEntry()->lock();
-    http->storeEntry()->createMemObject(storeId(), http->log_uri);
-
-    http->storeEntry()->mem_obj->method = http->request->method;
+    http->storeEntry()->lock("clientReplyContext::purgeFoundObject");
+    http->storeEntry()->createMemObject(storeId(), http->log_uri,
+                                        http->request->method);
 
     sc = storeClientListAdd(http->storeEntry(), this);
 
@@ -963,9 +987,8 @@ clientReplyContext::purgeDoPurgeHead(StoreEntry *newEntry)
     }
 
     /* And for Vary, release the base URI if none of the headers was included in the request */
-
-    if (http->request->vary_headers
-            && !strstr(http->request->vary_headers, "=")) {
+    if (!http->request->vary_headers.isEmpty()
+            && http->request->vary_headers.find('=') != SBuf::npos) {
         StoreEntry *entry = storeGetPublic(urlCanonical(http->request), Http::METHOD_GET);
 
         if (entry) {
@@ -1169,7 +1192,7 @@ clientReplyContext::replyStatus()
 
     if (http->storeEntry() == NULL) {
         debugs(88, 5, "clientReplyStatus: no storeEntry");
-        return STREAM_FAILED;	/* yuck, but what can we do? */
+        return STREAM_FAILED;   /* yuck, but what can we do? */
     }
 
     if (EBIT_TEST(http->storeEntry()->flags, ENTRY_ABORTED)) {
@@ -1182,7 +1205,7 @@ clientReplyContext::replyStatus()
     }
 
     if ((done = checkTransferDone()) != 0 || flags.complete) {
-        debugs(88, 5, "clientReplyStatus: transfer is DONE");
+        debugs(88, 5, "clientReplyStatus: transfer is DONE: " << done << flags.complete);
         /* Ok we're finished, but how? */
 
         const int64_t expectedBodySize =
@@ -1190,6 +1213,11 @@ clientReplyContext::replyStatus()
         if (!http->request->flags.proxyKeepalive && expectedBodySize < 0) {
             debugs(88, 5, "clientReplyStatus: closing, content_length < 0");
             return STREAM_FAILED;
+        }
+
+        if (EBIT_TEST(http->storeEntry()->flags, ENTRY_BAD_LENGTH)) {
+            debugs(88, 5, "clientReplyStatus: truncated response body");
+            return STREAM_UNPLANNED_COMPLETE;
         }
 
         if (!done) {
@@ -1202,13 +1230,9 @@ clientReplyContext::replyStatus()
             return STREAM_UNPLANNED_COMPLETE;
         }
 
-        if (http->request->flags.proxyKeepalive) {
-            debugs(88, 5, "clientReplyStatus: stream complete and can keepalive");
-            return STREAM_COMPLETE;
-        }
-
-        debugs(88, 5, "clientReplyStatus: stream was not expected to complete!");
-        return STREAM_UNPLANNED_COMPLETE;
+        debugs(88, 5, "clientReplyStatus: stream complete; keepalive=" <<
+               http->request->flags.proxyKeepalive);
+        return STREAM_COMPLETE;
     }
 
     // XXX: Should this be checked earlier? We could return above w/o checking.
@@ -1401,7 +1425,7 @@ clientReplyContext::buildReplyHeader()
                     if (!request->flags.accelerated && !request->flags.intercepted) {
                         httpHeaderPutStrf(hdr, HDR_PROXY_SUPPORT, "Session-Based-Authentication");
                         /*
-                          We send "[Proxy-]Connection: Proxy-Support" header to mark
+                          We send "Connection: Proxy-Support" header to mark
                           Proxy-Support as a hop-by-hop header for intermediaries that do not
                           understand the semantics of this header. The RFC should have included
                           this recommendation.
@@ -1477,6 +1501,10 @@ clientReplyContext::buildReplyHeader()
         // The peer wants to close the pinned connection
         debugs(88, 3, "pinned reply forces close");
         request->flags.proxyKeepalive = false;
+    } else if (http->getConn() && http->getConn()->port->listenConn == NULL) {
+        // The listening port closed because of a reconfigure
+        debugs(88, 3, "listening port closed");
+        request->flags.proxyKeepalive = false;
     }
 
     // Decide if we send chunked reply
@@ -1544,6 +1572,23 @@ clientReplyContext::cloneReply()
     buildReplyHeader();
 }
 
+/// Safely disposes of an entry pointing to a cache hit that we do not want.
+/// We cannot just ignore the entry because it may be locking or otherwise
+/// holding an associated cache resource of some sort.
+void
+clientReplyContext::forgetHit()
+{
+    StoreEntry *e = http->storeEntry();
+    assert(e); // or we are not dealing with a hit
+    // We probably have not locked the entry earlier, unfortunately. We lock it
+    // now so that we can unlock two lines later (and trigger cleanup).
+    // Ideally, ClientHttpRequest::storeEntry() should lock/unlock, but it is
+    // used so inconsistently that simply adding locking there leads to bugs.
+    e->lock("clientReplyContext::forgetHit");
+    http->storeEntry(NULL);
+    e->unlock("clientReplyContext::forgetHit"); // may delete e
+}
+
 void
 clientReplyContext::identifyStoreObject()
 {
@@ -1580,23 +1625,8 @@ clientReplyContext::identifyFoundObject(StoreEntry *newEntry)
     /** \li If the request has no-cache flag set or some no_cache HACK in operation we
       * 'invalidate' the cached IP entries for this request ???
       */
-    if (r->flags.noCache) {
-
-#if USE_DNSHELPER
-        ipcacheInvalidate(r->GetHost());
-#else
+    if (r->flags.noCache || r->flags.noCacheHack())
         ipcacheInvalidateNegative(r->GetHost());
-#endif /* USE_DNSHELPER */
-
-    } else if (r->flags.noCacheHack()) {
-
-#if USE_DNSHELPER
-        ipcacheInvalidate(r->GetHost());
-#else
-        ipcacheInvalidateNegative(r->GetHost());
-#endif /* USE_DNSHELPER */
-
-    }
 
 #if USE_CACHE_DIGESTS
     lookup_type = http->storeEntry() ? "HIT" : "MISS";
@@ -1604,7 +1634,7 @@ clientReplyContext::identifyFoundObject(StoreEntry *newEntry)
 
     if (NULL == http->storeEntry()) {
         /** \li If no StoreEntry object is current assume this object isn't in the cache set MISS*/
-        debugs(85, 3, "clientProcessRequest2: StoreEntry is NULL -  MISS");
+        debugs(85, 3, "StoreEntry is NULL -  MISS");
         http->logType = LOG_TCP_MISS;
         doGetMoreData();
         return;
@@ -1612,7 +1642,7 @@ clientReplyContext::identifyFoundObject(StoreEntry *newEntry)
 
     if (Config.onoff.offline) {
         /** \li If we are running in offline mode set to HIT */
-        debugs(85, 3, "clientProcessRequest2: offline HIT");
+        debugs(85, 3, "offline HIT " << *e);
         http->logType = LOG_TCP_HIT;
         doGetMoreData();
         return;
@@ -1620,16 +1650,16 @@ clientReplyContext::identifyFoundObject(StoreEntry *newEntry)
 
     if (http->redirect.status) {
         /** \li If redirection status is True force this to be a MISS */
-        debugs(85, 3, HERE << "REDIRECT status forced StoreEntry to NULL (no body on 3XX responses)");
-        http->storeEntry(NULL);
+        debugs(85, 3, "REDIRECT status forced StoreEntry to NULL (no body on 3XX responses) " << *e);
+        forgetHit();
         http->logType = LOG_TCP_REDIRECT;
         doGetMoreData();
         return;
     }
 
     if (!e->validToSend()) {
-        debugs(85, 3, "clientProcessRequest2: !storeEntryValidToSend MISS" );
-        http->storeEntry(NULL);
+        debugs(85, 3, "!storeEntryValidToSend MISS " << *e);
+        forgetHit();
         http->logType = LOG_TCP_MISS;
         doGetMoreData();
         return;
@@ -1637,21 +1667,21 @@ clientReplyContext::identifyFoundObject(StoreEntry *newEntry)
 
     if (EBIT_TEST(e->flags, ENTRY_SPECIAL)) {
         /* \li Special entries are always hits, no matter what the client says */
-        debugs(85, 3, "clientProcessRequest2: ENTRY_SPECIAL HIT");
+        debugs(85, 3, "ENTRY_SPECIAL HIT " << *e);
         http->logType = LOG_TCP_HIT;
         doGetMoreData();
         return;
     }
 
     if (r->flags.noCache) {
-        debugs(85, 3, "clientProcessRequest2: no-cache REFRESH MISS");
-        http->storeEntry(NULL);
+        debugs(85, 3, "no-cache REFRESH MISS " << *e);
+        forgetHit();
         http->logType = LOG_TCP_CLIENT_REFRESH_MISS;
         doGetMoreData();
         return;
     }
 
-    debugs(85, 3, "clientProcessRequest2: default HIT");
+    debugs(85, 3, "default HIT " << *e);
     http->logType = LOG_TCP_HIT;
     doGetMoreData();
 }
@@ -1723,9 +1753,10 @@ clientReplyContext::doGetMoreData()
         /* someone found the object in the cache for us */
         StoreIOBuffer localTempBuffer;
 
-        http->storeEntry()->lock();
+        http->storeEntry()->lock("clientReplyContext::doGetMoreData");
 
-        if (http->storeEntry()->mem_obj == NULL) {
+        MemObject *mem_obj = http->storeEntry()->makeMemObject();
+        if (!mem_obj->hasUris()) {
             /*
              * This if-block exists because we don't want to clobber
              * a preexiting mem_obj->method value if the mem_obj
@@ -1733,13 +1764,12 @@ clientReplyContext::doGetMoreData()
              * is a cache hit for a GET response, we want to keep
              * the method as GET.
              */
-            http->storeEntry()->createMemObject(storeId(), http->log_uri);
-            http->storeEntry()->mem_obj->method = http->request->method;
+            mem_obj->setUris(storeId(), http->log_uri, http->request->method);
             /**
              * Here we can see if the object was
              * created using URL or alternative StoreID from helper.
              */
-            debugs(88, 3, "mem_obj->url: " << http->storeEntry()->mem_obj->url);
+            debugs(88, 3, "storeId: " << http->storeEntry()->mem_obj->storeId());
         }
 
         sc = storeClientListAdd(http->storeEntry(), this);
@@ -1964,9 +1994,9 @@ clientReplyContext::ProcessReplyAccessResult(allow_t rv, void *voidMe)
 void
 clientReplyContext::processReplyAccessResult(const allow_t &accessAllowed)
 {
-    debugs(88, 2, "The reply for " << RequestMethodStr(http->request->method)
-           << " " << http->uri << " is " << accessAllowed << ", because it matched '"
-           << (AclMatchedName ? AclMatchedName : "NO ACL's") << "'" );
+    debugs(88, 2, "The reply for " << http->request->method
+           << ' ' << http->uri << " is " << accessAllowed << ", because it matched "
+           << (AclMatchedName ? AclMatchedName : "NO ACL's"));
 
     if (accessAllowed != ACCESS_ALLOWED) {
         ErrorState *err;
@@ -2175,6 +2205,16 @@ clientReplyContext::createStoreEntry(const HttpRequestMethod& m, RequestFlags re
 
     StoreEntry *e = storeCreateEntry(storeId(), http->log_uri, reqFlags, m);
 
+    // Make entry collapsable ASAP, to increase collapsing chances for others,
+    // TODO: every must-revalidate and similar request MUST reach the origin,
+    // but do we have to prohibit others from collapsing on that request?
+    if (Config.onoff.collapsed_forwarding && reqFlags.cachable &&
+            !reqFlags.needValidation &&
+            (m == Http::METHOD_GET || m == Http::METHOD_HEAD)) {
+        // make the entry available for future requests now
+        Store::Root().allowCollapsing(e, reqFlags, m);
+    }
+
     sc = storeClientListAdd(e, this);
 
 #if USE_DELAY_POOLS
@@ -2215,3 +2255,4 @@ clientBuildError(err_type page_id, Http::StatusCode status, char const *url,
 
     return err;
 }
+

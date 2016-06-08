@@ -1,19 +1,28 @@
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #ifndef SQUID_ACLFILLED_CHECKLIST_H
 #define SQUID_ACLFILLED_CHECKLIST_H
 
+#include "AccessLogEntry.h"
 #include "acl/Checklist.h"
 #include "acl/forward.h"
+#include "base/CbcPointer.h"
 #include "ip/Address.h"
 #if USE_AUTH
 #include "auth/UserRequest.h"
 #endif
-#if USE_SSL
+#if USE_OPENSSL
 #include "ssl/support.h"
 #endif
 
 class CachePeer;
 class ConnStateData;
-class ExternalACLEntry;
 class HttpRequest;
 class HttpReply;
 
@@ -68,14 +77,16 @@ public:
     char *snmp_community;
 #endif
 
-#if USE_SSL
+#if USE_OPENSSL
     /// SSL [certificate validation] errors, in undefined order
-    Ssl::CertErrors *sslErrors;
+    const Ssl::CertErrors *sslErrors;
     /// The peer certificate
     Ssl::X509_Pointer serverCert;
 #endif
 
-    ExternalACLEntry *extacl_entry;
+    AccessLogEntry::Pointer al; ///< info for the future access.log entry
+
+    ExternalACLEntryPointer extacl_entry;
 
 private:
     ConnStateData * conn_;          /**< hack for ident and NTLM */
@@ -100,3 +111,4 @@ ACLFilledChecklist *Filled(ACLChecklist *checklist)
 }
 
 #endif /* SQUID_ACLFILLED_CHECKLIST_H */
+

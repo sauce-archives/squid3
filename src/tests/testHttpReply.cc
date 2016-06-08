@@ -1,13 +1,21 @@
-#define SQUID_UNIT_TEST 1
+/*
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
+ */
+
 #include "squid.h"
 #include <cppunit/TestAssert.h>
 
-#include "testHttpReply.h"
 #include "HttpHeader.h"
 #include "HttpReply.h"
 #include "Mem.h"
 #include "mime_header.h"
 #include "SquidConfig.h"
+#include "testHttpReply.h"
+#include "unitTestMain.h"
 
 CPPUNIT_TEST_SUITE_REGISTRATION( testHttpReply );
 
@@ -20,15 +28,6 @@ int64_t
 MemObject::endOffset() const
 {
     return 0;
-}
-
-#include "ConfigParser.h"
-
-void
-eventAdd(const char *name, EVH * func, void *arg, double when, int, bool cbdata)
-{
-// CALLED as setUp no-op
-//    fatal("eventAdd. Not implemented.");
 }
 
 /* end */
@@ -203,3 +202,4 @@ testHttpReply::testSanityCheckFirstLine()
     input.reset();
     error = Http::scNone;
 }
+

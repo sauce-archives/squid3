@@ -1,45 +1,38 @@
 /*
- * DEBUG: section 89    NAT / IP Interception
- * AUTHOR: Robert Collins
- * AUTHOR: Amos Jeffries
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 89    NAT / IP Interception */
+
+// Enable hack to workaround Solaris 10 IPFilter breakage
+#define BUILDING_SQUID_IP_INTERCEPT_CC 1
+
 #include "squid.h"
 #include "comm/Connection.h"
-#include "ip/Intercept.h"
 #include "fde.h"
+#include "ip/Intercept.h"
 #include "src/tools.h"
+
+#include <cerrno>
 
 #if IPF_TRANSPARENT
 
+#if !defined(IPFILTER_VERSION)
+#define IPFILTER_VERSION        5000004
+#endif
+
+#if HAVE_SYS_IOCCOM_H
+#include <sys/ioccom.h>
+#endif
 #if HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
+#endif
+#if HAVE_NETINET_IP6_H
+#include <netinet/ip6.h>
 #endif
 #if HAVE_NETINET_TCP_H
 #include <netinet/tcp.h>
@@ -51,6 +44,9 @@
 #include <ipl.h>
 #elif HAVE_NETINET_IPL_H
 #include <netinet/ipl.h>
+#endif
+#if USE_SOLARIS_IPFILTER_MINOR_T_HACK
+#undef minor_t
 #endif
 #if HAVE_IP_FIL_COMPAT_H
 #include <ip_fil_compat.h>
@@ -71,9 +67,6 @@
 #elif HAVE_NETINET_IP_NAT_H
 #include <netinet/ip_nat.h>
 #endif
-#if HAVE_ERRNO_H
-#include <errno.h>
-#endif
 
 #endif /* IPF_TRANSPARENT required headers */
 
@@ -92,10 +85,8 @@
 #endif /* PF_TRANSPARENT required headers */
 
 #if LINUX_NETFILTER
-#if HAVE_LIMITS_H
-/* must be before including netfilter_ipv4.h */
-#include <limits.h>
-#endif
+/* <climits> must be before including netfilter_ipv4.h */
+#include <climits>
 #include <linux/if.h>
 #include <linux/netfilter_ipv4.h>
 #if HAVE_LINUX_NETFILTER_IPV6_IP6_TABLES_H
@@ -109,7 +100,7 @@
 #include <linux/netfilter_ipv6/ip6_tables.h>
 #endif
 #if !defined(IP6T_SO_ORIGINAL_DST)
-#define IP6T_SO_ORIGINAL_DST	80	// stolen with prejudice from the above file.
+#define IP6T_SO_ORIGINAL_DST    80  // stolen with prejudice from the above file.
 #endif
 #endif /* LINUX_NETFILTER required headers */
 
@@ -209,6 +200,19 @@ Ip::Intercept::IpfInterception(const Comm::ConnectionPointer &newConn, int silen
     // all fields must be set to 0
     memset(&natLookup, 0, sizeof(natLookup));
     // for NAT lookup set local and remote IP:port's
+    if (newConn->remote.isIPv6()) {
+#if IPFILTER_VERSION < 5000003
+        // warn once every 10 at critical level, then push down a level each repeated event
+        static int warningLevel = DBG_CRITICAL;
+        debugs(89, warningLevel, "IPF (IPFilter v4) NAT does not support IPv6. Please upgrade to IPFilter v5.1");
+        warningLevel = (warningLevel + 1) % 10;
+        return false;
+#else
+        natLookup.nl_v = 6;
+    } else {
+        natLookup.nl_v = 4;
+#endif
+    }
     natLookup.nl_inport = htons(newConn->local.port());
     newConn->local.getInAddr(natLookup.nl_inip);
     natLookup.nl_outport = htons(newConn->remote.port());
@@ -488,3 +492,4 @@ Ip::Intercept::ProbeForTproxy(Ip::Address &test)
         leave_suid();
     return false;
 }
+

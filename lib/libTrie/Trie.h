@@ -1,54 +1,20 @@
 /*
- * Copyright (c) 2002,2003 Robert Collins <rbtcollins@hotmail.com>
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
 
 #ifndef   LIBTRIE_SQUID_H
 #define   LIBTRIE_SQUID_H
 
-/* This is the header for libTrie.
- * libTrie provides both C and C++
- * bindings. libtrie itself is written in C++.
- */
-
+#include "TrieNode.h"
 #if HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
 
-/* C bindings */
-#ifndef   __cplusplus
-
-/* TODO: provide parameterisation for C bindings */
-void *TrieCreate (void);
-void TrieDestroy (void *);
-void *TrieFind (void *, char const *, size_t);
-int TrieAdd (void *, char const *, size_t, void *);
-
-/* C++ bindings */
-#else
-
-/* MinGW needs NULL definition */
-#ifndef NULL
-#define NULL 0
-#endif
-
 class TrieCharTransform;
-
-class TrieNode;
 
 /* TODO: parameterize this to be more generic -
 * i.e. M-ary internal node sizes etc
@@ -67,11 +33,11 @@ public:
     * If found, return the private data.
     * If not found, return NULL.
     */
-    _SQUID_INLINE_ void *find (char const *, size_t);
+    inline void *find (char const *, size_t);
     /* find any element of the trie in the buffer from the
     * beginning thereof
     */
-    _SQUID_INLINE_ void *findPrefix (char const *, size_t);
+    inline void *findPrefix (char const *, size_t);
 
     /* Add a string.
     * returns false if the string is already
@@ -87,10 +53,23 @@ private:
     TrieCharTransform *transform;
 };
 
-#endif /* __cplusplus */
+void *
+Trie::find (char const *aString, size_t theLength)
+{
+    if (head)
+        return head->find (aString, theLength, transform, false);
 
-#if _USE_INLINE_
-#include "Trie.cci"
-#endif
+    return NULL;
+}
+
+void *
+Trie::findPrefix (char const *aString, size_t theLength)
+{
+    if (head)
+        return head->find (aString, theLength, transform, true);
+
+    return NULL;
+}
 
 #endif /* LIBTRIE_SQUID_H */
+

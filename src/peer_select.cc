@@ -1,34 +1,12 @@
 /*
- * DEBUG: section 44    Peer Selection Algorithm
- * AUTHOR: Duane Wessels
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
  *
- * SQUID Web Proxy Cache          http://www.squid-cache.org/
- * ----------------------------------------------------------
- *
- *  Squid is the result of efforts by numerous individuals from
- *  the Internet community; see the CONTRIBUTORS file for full
- *  details.   Many organizations have provided support for Squid's
- *  development; see the SPONSORS file for full details.  Squid is
- *  Copyrighted (C) 2001 by the Regents of the University of
- *  California; see the COPYRIGHT file for full details.  Squid
- *  incorporates software developed and/or copyrighted by other
- *  sources; see the CREDITS file for full details.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
- *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 44    Peer Selection Algorithm */
 
 #include "squid.h"
 #include "acl/FilledChecklist.h"
@@ -45,8 +23,8 @@
 #include "HttpRequest.h"
 #include "icmp/net_db.h"
 #include "ICP.h"
-#include "ipcache.h"
 #include "ip/tools.h"
+#include "ipcache.h"
 #include "Mem.h"
 #include "neighbors.h"
 #include "peer_sourcehash.h"
@@ -90,6 +68,13 @@ CBDATA_CLASS_INIT(ps_state);
 
 ps_state::~ps_state()
 {
+    while (servers) {
+        FwdServer *next = servers->next;
+        cbdataReferenceDone(servers->_peer);
+        memFree(servers, MEM_FWD_SERVER);
+        servers = next;
+    }
+
     if (entry) {
         debugs(44, 3, entry->url());
 
@@ -108,7 +93,7 @@ ps_state::~ps_state()
 
     if (entry) {
         assert(entry->ping_status != PING_WAITING);
-        entry->unlock();
+        entry->unlock("peerSelect");
         entry = NULL;
     }
 
@@ -122,7 +107,7 @@ peerSelectIcpPing(HttpRequest * request, int direct, StoreEntry * entry)
     assert(entry);
     assert(entry->ping_status == PING_NONE);
     assert(direct != DIRECT_YES);
-    debugs(44, 3, "peerSelectIcpPing: " << entry->url()  );
+    debugs(44, 3, "peerSelectIcpPing: " << entry->url());
 
     if (!request->flags.hierarchical && direct != DIRECT_NO)
         return 0;
@@ -141,6 +126,7 @@ peerSelectIcpPing(HttpRequest * request, int direct, StoreEntry * entry)
 void
 peerSelect(Comm::ConnectionList * paths,
            HttpRequest * request,
+           AccessLogEntry::Pointer const &al,
            StoreEntry * entry,
            PSC * callback,
            void *callback_data)
@@ -148,14 +134,15 @@ peerSelect(Comm::ConnectionList * paths,
     ps_state *psstate;
 
     if (entry)
-        debugs(44, 3, "peerSelect: " << entry->url()  );
+        debugs(44, 3, *entry << ' ' << entry->url());
     else
-        debugs(44, 3, "peerSelect: " << RequestMethodStr(request->method));
+        debugs(44, 3, request->method);
 
     psstate = new ps_state;
 
     psstate->request = request;
     HTTPMSGLOCK(psstate->request);
+    psstate->al = al;
 
     psstate->entry = entry;
     psstate->paths = paths;
@@ -171,7 +158,7 @@ peerSelect(Comm::ConnectionList * paths,
 #endif
 
     if (psstate->entry)
-        psstate->entry->lock();
+        psstate->entry->lock("peerSelect");
 
     peerSelectFoo(psstate);
 }
@@ -227,6 +214,12 @@ peerSelectDnsPaths(ps_state *psstate)
 {
     FwdServer *fs = psstate->servers;
 
+    if (!cbdataReferenceValid(psstate->callback_data)) {
+        debugs(44, 3, "Aborting peer selection. Parent Job went away.");
+        delete psstate;
+        return;
+    }
+
     // Bug 3243: CVE 2009-0801
     // Bypass of browser same-origin access control in intercepted communication
     // To resolve this we must use only the original client destination when going DIRECT
@@ -262,7 +255,7 @@ peerSelectDnsPaths(ps_state *psstate)
     if (fs && psstate->paths->size() < (unsigned int)Config.forward_max_tries) {
         // send the next one off for DNS lookup.
         const char *host = fs->_peer ? fs->_peer->host : psstate->request->GetHost();
-        debugs(44, 2, "Find IP destination for: " << psstate->entry->url() << "' via " << host);
+        debugs(44, 2, "Find IP destination for: " << psstate->url() << "' via " << host);
         ipcache_nbgethostbyname(host, peerSelectDnsResults, psstate);
         return;
     }
@@ -271,11 +264,12 @@ peerSelectDnsPaths(ps_state *psstate)
     // due to the allocation method of fs, we must deallocate each manually.
     // TODO: use a std::list so we can get the size and abort adding whenever the selection loops reach Config.forward_max_tries
     if (fs && psstate->paths->size() >= (unsigned int)Config.forward_max_tries) {
+        assert(fs == psstate->servers);
         while (fs) {
-            FwdServer *next = fs->next;
+            psstate->servers = fs->next;
             cbdataReferenceDone(fs->_peer);
             memFree(fs, MEM_FWD_SERVER);
-            fs = next;
+            fs = psstate->servers;
         }
     }
 
@@ -316,6 +310,12 @@ static void
 peerSelectDnsResults(const ipcache_addrs *ia, const DnsLookupDetails &details, void *data)
 {
     ps_state *psstate = (ps_state *)data;
+
+    if (!cbdataReferenceValid(psstate->callback_data)) {
+        debugs(44, 3, "Aborting peer selection. Parent Job went away.");
+        delete psstate;
+        return;
+    }
 
     psstate->request->recordLookup(details);
 
@@ -430,22 +430,32 @@ peerCheckNetdbDirect(ps_state * psstate)
 static void
 peerSelectFoo(ps_state * ps)
 {
+    if (!cbdataReferenceValid(ps->callback_data)) {
+        debugs(44, 3, "Aborting peer selection. Parent Job went away.");
+        delete ps;
+        return;
+    }
+
     StoreEntry *entry = ps->entry;
     HttpRequest *request = ps->request;
-    debugs(44, 3, "peerSelectFoo: '" << RequestMethodStr(request->method) << " " << request->GetHost() << "'");
+    debugs(44, 3, request->method << ' ' << request->GetHost());
 
     /** If we don't know whether DIRECT is permitted ... */
     if (ps->direct == DIRECT_UNKNOWN) {
         if (ps->always_direct == ACCESS_DUNNO) {
             debugs(44, 3, "peerSelectFoo: direct = " << DirectStr[ps->direct] << " (always_direct to be checked)");
             /** check always_direct; */
-            ps->acl_checklist = new ACLFilledChecklist(Config.accessList.AlwaysDirect, request, NULL);
+            ACLFilledChecklist *ch = new ACLFilledChecklist(Config.accessList.AlwaysDirect, request, NULL);
+            ch->al = ps->al;
+            ps->acl_checklist = ch;
             ps->acl_checklist->nonBlockingCheck(peerCheckAlwaysDirectDone, ps);
             return;
         } else if (ps->never_direct == ACCESS_DUNNO) {
             debugs(44, 3, "peerSelectFoo: direct = " << DirectStr[ps->direct] << " (never_direct to be checked)");
             /** check never_direct; */
-            ps->acl_checklist = new ACLFilledChecklist(Config.accessList.NeverDirect, request, NULL);
+            ACLFilledChecklist *ch = new ACLFilledChecklist(Config.accessList.NeverDirect, request, NULL);
+            ch->al = ps->al;
+            ps->acl_checklist = ch;
             ps->acl_checklist->nonBlockingCheck(peerCheckNeverDirectDone, ps);
             return;
         } else if (request->flags.noDirect) {
@@ -660,7 +670,7 @@ peerGetSomeDirect(ps_state * ps)
         return;
 
     /* WAIS is not implemented natively */
-    if (ps->request->protocol == AnyP::PROTO_WAIS)
+    if (ps->request->url.getScheme() == AnyP::PROTO_WAIS)
         return;
 
     peerAddFwdServer(&ps->servers, NULL, HIER_DIRECT);
@@ -672,7 +682,7 @@ peerGetSomeParent(ps_state * ps)
     CachePeer *p;
     HttpRequest *request = ps->request;
     hier_code code = HIER_NONE;
-    debugs(44, 3, "peerGetSomeParent: " << RequestMethodStr(request->method) << " " << request->GetHost());
+    debugs(44, 3, request->method << ' ' << request->GetHost());
 
     if (ps->direct == DIRECT_YES)
         return;
@@ -743,7 +753,7 @@ peerPingTimeout(void *data)
     StoreEntry *entry = psstate->entry;
 
     if (entry)
-        debugs(44, 3, "peerPingTimeout: '" << entry->url() << "'" );
+        debugs(44, 3, "peerPingTimeout: '" << psstate->url() << "'" );
 
     if (!cbdataReferenceValid(psstate->callback_data)) {
         /* request aborted */
@@ -811,7 +821,7 @@ peerHandleIcpReply(CachePeer * p, peer_t type, icp_common_t * header, void *data
 {
     ps_state *psstate = (ps_state *)data;
     icp_opcode op = header->getOpCode();
-    debugs(44, 3, "peerHandleIcpReply: " << icp_opcode_str[op] << " " << psstate->entry->url()  );
+    debugs(44, 3, "peerHandleIcpReply: " << icp_opcode_str[op] << " " << psstate->url()  );
 #if USE_CACHE_DIGESTS && 0
     /* do cd lookup to count false misses */
 
@@ -844,9 +854,7 @@ static void
 peerHandleHtcpReply(CachePeer * p, peer_t type, HtcpReplyData * htcp, void *data)
 {
     ps_state *psstate = (ps_state *)data;
-    debugs(44, 3, "peerHandleHtcpReply: " <<
-           (htcp->hit ? "HIT" : "MISS") << " " <<
-           psstate->entry->url()  );
+    debugs(44, 3, "" << (htcp->hit ? "HIT" : "MISS") << " " << psstate->url());
     ++ psstate->ping.n_recv;
 
     if (htcp->hit) {
@@ -940,19 +948,20 @@ peerAddFwdServer(FwdServer ** FSVR, CachePeer * p, hier_code code)
 }
 
 ps_state::ps_state() : request (NULL),
-        entry (NULL),
-        always_direct(Config.accessList.AlwaysDirect?ACCESS_DUNNO:ACCESS_DENIED),
-        never_direct(Config.accessList.NeverDirect?ACCESS_DUNNO:ACCESS_DENIED),
-        direct(DIRECT_UNKNOWN),
-        callback (NULL),
-        callback_data (NULL),
-        lastError(NULL),
-        servers (NULL),
-        first_parent_miss(),
-        closest_parent_miss(),
-        hit(NULL),
-        hit_type(PEER_NONE),
-        acl_checklist (NULL)
+    entry (NULL),
+    always_direct(Config.accessList.AlwaysDirect?ACCESS_DUNNO:ACCESS_DENIED),
+    never_direct(Config.accessList.NeverDirect?ACCESS_DUNNO:ACCESS_DENIED),
+    direct(DIRECT_UNKNOWN),
+    callback (NULL),
+    callback_data (NULL),
+    lastError(NULL),
+    paths(NULL),
+    servers (NULL),
+    first_parent_miss(),
+    closest_parent_miss(),
+    hit(NULL),
+    hit_type(PEER_NONE),
+    acl_checklist (NULL)
 {
     ; // no local defaults.
 }
@@ -970,16 +979,17 @@ ps_state::url() const
 }
 
 ping_data::ping_data() :
-        n_sent(0),
-        n_recv(0),
-        n_replies_expected(0),
-        timeout(0),
-        timedout(0),
-        w_rtt(0),
-        p_rtt(0)
+    n_sent(0),
+    n_recv(0),
+    n_replies_expected(0),
+    timeout(0),
+    timedout(0),
+    w_rtt(0),
+    p_rtt(0)
 {
     start.tv_sec = 0;
     start.tv_usec = 0;
     stop.tv_sec = 0;
     stop.tv_usec = 0;
 }
+

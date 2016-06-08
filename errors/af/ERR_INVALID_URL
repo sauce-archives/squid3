@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>FOUT: Die aangevraagde URL kon nie verkry word nie</title>
 <style type="text/css"><!-- 
@@ -29,7 +30,7 @@ body
 <ul>
 <li><p>Ontbrekende of verkeerde toegangsprotokol (moet <q>http://</q> of soortgelyk wees)</p></li>
 <li><p>Ontbrekende gasheernaam</p></li>
-<li><p></p></li>
+<li><p>Illegal double-escape in the URL-Path</p></li>
 <li><p>Ongeldige karakter in gasheernaam; onderstreep word nie toegelaat nie.</p></li>
 </ul>
 

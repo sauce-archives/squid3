@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>שגיאה: הכתובת ה URL מבוקשת לא נגישה</title>
 <style type="text/css"><!-- 
@@ -25,7 +26,7 @@ body
 
 <p>התגובת ה HTTP שהתקבלה מהשרת אינה מובנת או פגומה. אנא צור קשר עם מפעיל האתר.</p>
 
-<p></p>
+<p>Your cache administrator may be able to provide you with more details about the exact nature of the problem if needed.</p>
 
 <p>מנהל השרת הוא <a href="mailto:%w%W">%w</a>. </p>
 <br>

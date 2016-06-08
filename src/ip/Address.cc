@@ -1,22 +1,21 @@
 /*
- * DEBUG: section 14    IP Storage and Handling
- * AUTHOR: Amos Jeffries
- * COPYRIGHT: GPL version 2, (C)2007-2013 Treehouse Networks Ltd.
+ * Copyright (C) 1996-2016 The Squid Software Foundation and contributors
+ *
+ * Squid software is distributed under GPLv2+ license and includes
+ * contributions from numerous individuals and organizations.
+ * Please see the COPYING and CONTRIBUTORS files for details.
  */
+
+/* DEBUG: section 14    IP Storage and Handling */
+
 #include "squid.h"
-#include "compat/inet_ntop.h"
-#include "compat/getaddrinfo.h"
 #include "Debug.h"
 #include "ip/Address.h"
 #include "ip/tools.h"
 #include "util.h"
 
-#if HAVE_ASSERT_H
-#include <assert.h>
-#endif
-#if HAVE_STRING_H
-#include <string.h>
-#endif
+#include <cassert>
+#include <cstring>
 #if HAVE_ARPA_INET_H
 /* for inet_ntoa() */
 #include <arpa/inet.h>
@@ -33,13 +32,13 @@
 
 /* Debugging only. Dump the address content when a fatal assert is encountered. */
 #define IASSERT(a,b)  \
-	if(!(b)){	printf("assert \"%s\" at line %d\n", a, __LINE__); \
-		printf("Ip::Address invalid? with isIPv4()=%c, isIPv6()=%c\n",(isIPv4()?'T':'F'),(isIPv6()?'T':'F')); \
-		printf("ADDRESS:"); \
-		for(unsigned int i = 0; i < sizeof(mSocketAddr_.sin6_addr); ++i) { \
-			printf(" %x", mSocketAddr_.sin6_addr.s6_addr[i]); \
-		} printf("\n"); assert(b); \
-	}
+    if(!(b)){   printf("assert \"%s\" at line %d\n", a, __LINE__); \
+        printf("Ip::Address invalid? with isIPv4()=%c, isIPv6()=%c\n",(isIPv4()?'T':'F'),(isIPv6()?'T':'F')); \
+        printf("ADDRESS:"); \
+        for(unsigned int i = 0; i < sizeof(mSocketAddr_.sin6_addr); ++i) { \
+            printf(" %x", mSocketAddr_.sin6_addr.s6_addr[i]); \
+        } printf("\n"); assert(b); \
+    }
 
 int
 Ip::Address::cidr() const
@@ -188,17 +187,29 @@ const struct in6_addr Ip::Address::v4_anyaddr = {{{ 0x00000000, 0x00000000, 0x00
 const struct in6_addr Ip::Address::v4_noaddr = {{{ 0x00000000, 0x00000000, 0x0000ffff, 0xffffffff }}};
 const struct in6_addr Ip::Address::v6_noaddr = {{{ 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff }}};
 #else
-const struct in6_addr Ip::Address::v4_localhost = {{{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0xff, 0xff, 0x7f, 0x00, 0x00, 0x01 }}
+const struct in6_addr Ip::Address::v4_localhost = {{{
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xff, 0xff, 0x7f, 0x00, 0x00, 0x01
+        }
+    }
 };
-const struct in6_addr Ip::Address::v4_anyaddr = {{{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00 }}
+const struct in6_addr Ip::Address::v4_anyaddr = {{{
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00
+        }
+    }
 };
-const struct in6_addr Ip::Address::v4_noaddr = {{{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }}
+const struct in6_addr Ip::Address::v4_noaddr = {{{
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+        }
+    }
 };
-const struct in6_addr Ip::Address::v6_noaddr = {{{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }}
+const struct in6_addr Ip::Address::v6_noaddr = {{{
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+        }
+    }
 };
 #endif
 
@@ -382,6 +393,20 @@ Ip::Address::lookupHostIP(const char *s, bool nodns)
         return false;
     }
 
+    struct addrinfo *resHead = res; // we need to free the whole list later
+    if (!Ip::EnableIpv6) {
+        // if we are IPv6-disabled, use first-IPv4 instead of first-IP.
+        struct addrinfo *maybeIpv4 = res;
+        while (maybeIpv4) {
+            if (maybeIpv4->ai_family == AF_INET)
+                break;
+            maybeIpv4 = maybeIpv4->ai_next;
+        }
+        if (maybeIpv4 != NULL)
+            res = maybeIpv4;
+        // else IPv6-only host, let the caller deal with first-IP anyway.
+    }
+
     /*
      *  NP: =(sockaddr_*) may alter the port. we don't want that.
      *      all we have been given as input was an IPA.
@@ -391,7 +416,7 @@ Ip::Address::lookupHostIP(const char *s, bool nodns)
     port(portSaved);
 
     /* free the memory getaddrinfo() dynamically allocated. */
-    freeaddrinfo(res);
+    freeaddrinfo(resHead);
     return true;
 }
 
@@ -648,7 +673,7 @@ Ip::Address::getAddrInfo(struct addrinfo *&dst, int force) const
 }
 
 void
-Ip::Address::InitAddrInfo(struct addrinfo *&ai)
+Ip::Address::InitAddr(struct addrinfo *&ai)
 {
     if (ai == NULL) {
         ai = new addrinfo;
@@ -666,7 +691,7 @@ Ip::Address::InitAddrInfo(struct addrinfo *&ai)
 }
 
 void
-Ip::Address::FreeAddrInfo(struct addrinfo *&ai)
+Ip::Address::FreeAddr(struct addrinfo *&ai)
 {
     if (ai == NULL) return;
 
@@ -999,3 +1024,4 @@ Ip::Address::getInAddr(struct in_addr &buf) const
     assert(false);
     return false;
 }
+

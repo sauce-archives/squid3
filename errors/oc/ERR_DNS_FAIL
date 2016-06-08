@@ -1,5 +1,6 @@
 
 <html><head>
+<meta type="copyright" content="Copyright (C) 1996-2016 The Squid Software Foundation and contributors">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>ERREUR : L'URL demandada a pas pogut èsser cargada</title>
 <style type="text/css"><!-- 
@@ -25,10 +26,10 @@ body
 
 <p>Lo servidor DNS a tornat :</p>
 <blockquote id="data">
-<pre></pre>
+<pre>%z</pre>
 </blockquote>
 
-<p></p>
+<p>This means that the cache was not able to resolve the hostname presented in the URL. Check if the address is correct.</p>
 
 <p>Vòstre administrator d'amagatal es <a href="mailto:%w">%w</a>.</p>
 <br>
