@@ -1,3 +1,15 @@
+squid3 (3.5.19-0~sauce2) trusty; urgency=medium
+
+  * Bump version to make launchpad happy
+
+ -- Henry Precheur <henry@precheur.org>  Thu, 09 Jun 2016 15:54:28 -0700
+
+squid3 (3.5.19-0~sauce1) trusty; urgency=medium
+
+  * Bump version
+
+ -- Henry Precheur <henry@precheur.org>  Thu, 09 Jun 2016 14:49:08 -0700
+
 squid3 (3.5.19-0~sauce0) trusty; urgency=medium
 
   * Update upstream to Squid 3.5.19
