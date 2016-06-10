@@ -1,3 +1,21 @@
+squid3 (3.5.19-1~sauce2) trusty; urgency=medium
+
+  * Bump version
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Thu, 09 Jun 2016 16:51:33 -0700
+
+squid3 (3.5.19-1~sauce1) trusty; urgency=medium
+
+  * Bump version
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Thu, 09 Jun 2016 16:48:00 -0700
+
+squid3 (3.5.19-1~sauce0) trusty; urgency=medium
+
+  * Bump version
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Thu, 09 Jun 2016 16:46:02 -0700
+
 squid3 (3.5.19-0~sauce2) trusty; urgency=medium
 
   * Bump version to make launchpad happy
@@ -9,6 +27,17 @@ squid3 (3.5.19-0~sauce1) trusty; urgency=medium
   * Bump version
 
  -- Henry Precheur <henry@precheur.org>  Thu, 09 Jun 2016 14:49:08 -0700
+squid3 (3.5.19-0~sauce1.0) trusty; urgency=medium
+
+  * Non-maintainer upload.
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Thu, 09 Jun 2016 15:23:57 -0700
+
+squid3 (3.5.19-0~sauce0.1) trusty; urgency=medium
+
+  * Bump version
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Thu, 09 Jun 2016 15:11:57 -0700
 
 squid3 (3.5.19-0~sauce0) trusty; urgency=medium
 
