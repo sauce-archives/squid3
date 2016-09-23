@@ -1,3 +1,9 @@
+squid3 (3.5.19-1~sauce3) trusty; urgency=medium
+
+  * Bump version
+
+ -- Vilmos Nebehaj <v.nebehaj@gmail.com>  Fri, 23 Sep 2016 10:25:34 -0700
+
 squid3 (3.5.19-1~sauce2) trusty; urgency=medium
 
   * Bump version
